@@ -1,0 +1,245 @@
+extern int MagicNumber=356;
+
+extern double Lots =0.01;
+
+extern double StopLoss=200;
+
+extern double TakeProfit=10;
+
+extern int TrailingStop=150;
+
+extern int Slippage=3;
+
+
+int buys=0,sells=0;
+
+double MyPoint=Point;
+
+  double TheStopLoss=0;
+
+  double TheTakeProfit=0;
+
+
+int OnInit()
+  {
+
+
+  if(Digits==3 || Digits==5) MyPoint=Point*10;
+
+  int PrevHstTotal=OrdersHistoryTotal();
+  }
+
+
+
+//+------------------------------------------------------------------+
+
+//    expert start function
+
+//+------------------------------------------------------------------+
+
+
+
+
+
+//int start()
+void OnTick()
+{
+
+  
+
+  
+
+  //  if(Volume[0]>1) return;  //if not the open of a mew bar - exit  
+
+  
+
+  
+
+      int result=0;
+
+    
+
+  
+
+
+
+  
+
+ TotalOrdersCount(); 
+
+  //if( TotalOrdersCount()==0 ) 
+
+if( buys == 0)
+  {
+
+      result=0;
+       TheStopLoss=0;
+
+         TheTakeProfit=0;
+         
+        if(TakeProfit>0) TheTakeProfit=Ask+TakeProfit*MyPoint;
+
+         if(StopLoss>0) TheStopLoss=Ask-StopLoss*MyPoint;
+
+ result=OrderSend(Symbol(),OP_BUY,Lots,Ask,Slippage,NormalizeDouble(TheStopLoss,Digits),NormalizeDouble(TheTakeProfit,Digits),"B UpnDwn",MagicNumber,0,Blue);  // result=OrderSend(Symbol(),OP_BUY,Lots,Ask,Slippage,0,0,"B UpnDwn",MagicNumber,0,Blue); 
+
+        if(result>0)
+
+        {
+         buys =1;
+         
+
+/*
+         if(TakeProfit>0) TheTakeProfit=Ask+TakeProfit*MyPoint;
+
+         if(StopLoss>0) TheStopLoss=Ask-StopLoss*MyPoint;
+
+         OrderSelect(result,SELECT_BY_TICKET);
+
+         OrderModify(OrderTicket(),OrderOpenPrice(),NormalizeDouble(TheStopLoss,Digits),NormalizeDouble(TheTakeProfit,Digits),0,Green);      
+
+       //sleep(100000); //sleep for 1.6 mins
+*/
+
+        }
+
+        result=0;
+}  //end of buy
+        
+
+        
+
+       
+if( sells == 0 )      { 
+
+
+         result=0;
+        TheStopLoss=0;
+
+         TheTakeProfit=0;
+         
+         if(TakeProfit>0) TheTakeProfit=Bid-TakeProfit*MyPoint;
+
+         if(StopLoss>0) TheStopLoss=Bid+StopLoss*MyPoint;
+
+        result=OrderSend(Symbol(),OP_SELL,Lots,Bid,Slippage,NormalizeDouble(TheStopLoss,Digits),NormalizeDouble(TheTakeProfit,Digits),"S UpnDwn",MagicNumber,0,Red);  //result=OrderSend(Symbol(),OP_SELL,Lots,Bid,Slippage,0,0,"S UpnDwn",MagicNumber,0,Red);
+
+
+        if(result>0)
+
+        {
+         sells =1;
+         
+         /*
+         TheStopLoss=0;
+
+         TheTakeProfit=0;
+
+         if(TakeProfit>0) TheTakeProfit=Bid-TakeProfit*MyPoint;
+
+         if(StopLoss>0) TheStopLoss=Bid+StopLoss*MyPoint;
+
+         OrderSelect(result,SELECT_BY_TICKET);
+
+         OrderModify(OrderTicket(),OrderOpenPrice(),NormalizeDouble(TheStopLoss,Digits),NormalizeDouble(TheTakeProfit,Digits),0,Green);
+
+       //sleep(100000); //sleep for 1.6 mins
+       
+       */
+       
+
+        }
+
+        result=0;
+
+       
+
+  
+
+  
+
+ }//end of sell
+
+
+
+}  //end of main loop
+
+
+int TotalOrdersCount()
+
+{
+
+  buys=0;sells=0;  // need to zero them out each time here
+
+                      
+
+  for(int i=0;i<OrdersTotal();i++)
+
+  {
+
+     if(!OrderSelect(i,SELECT_BY_POS ,MODE_TRADES))
+
+      Print("OrderModify error ",GetLastError());
+
+     if (OrderSymbol()==Symbol() &&OrderMagicNumber()==MagicNumber)
+
+        {
+
+         if(OrderType()==OP_BUY) 
+
+          {
+
+        
+
+            buys++;      
+
+          } //end adding buy order to open orders count
+
+          
+
+         if (OrderType()==OP_SELL)
+
+         { 
+
+
+          sells++;
+
+          
+
+             
+
+        }  //end adding sell  order to open orders count
+
+     
+
+
+     
+
+      
+
+        
+
+         } //end of if magic number matches
+
+      
+
+ 
+
+      
+
+  }  //end check each order
+
+      
+
+ 
+
+
+     
+
+//--- return orders volume
+
+  return(buys );
+
+  return(sells);
+
+}
