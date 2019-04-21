@@ -1,0 +1,352 @@
+// each charts needs its own magic number.. the EA filters not by symbol but by magic number
+
+//not sure y its nto workign on fxchoice at all not even displayign the comment
+//i updated this to be one back meaning its not currently moving up or down.. the indicators are all done
+//note:  this one is still the no 0 CCI cross.. just havent changed it on the charts so i use this in comparision
+
+
+extern int MagicNumber=12311;
+extern double Lots =0.01;
+extern double CCIExitValue = 200;
+static input string ExpertSettings__ = "CCI use 200 on GLD/SLV; 100 on FX pairs"; // use 200 on GLD/SLV; 100 on FX pairs
+extern double StopLoss=200;
+extern double TakeProfit=300;
+extern int TrailingStop=150;
+extern int Slippage=3;
+
+string Dirrection = "";
+string   Text="";
+bool OverBoughtStart = false;
+bool OverSoldStart = false;
+
+//+------------------------------------------------------------------+
+//    expert start function
+//+------------------------------------------------------------------+
+int start()
+{
+  
+  
+  //  if(Volume[0]>1) return(0);  //if not the open of a mew bar - exit
+    
+  double MyPoint=Point;
+  if(Digits==3 || Digits==5) MyPoint=Point*10;
+  
+  double TheStopLoss=0;
+  double TheTakeProfit=0;
+  double timeNow = TimeToStr(TimeCurrent(), TIME_DATE|TIME_SECONDS);
+  
+        string name3 = "Up"+timeNow ;
+      string name4 = "Dn"+timeNow; 
+      string Vname = "Doji" +timeNow;
+      
+      string object_name="price"+timeNow;
+      string objName = "Bullseye"+timeNow;
+      
+   /*   
+   double EMA2 = iMA(NULL,0,2,0,MODE_EMA,PRICE_CLOSE,0);
+   double EMA21 = iMA(NULL,0,21,0,MODE_EMA,PRICE_CLOSE,0);
+   double EMAPrevious2 = iMA(NULL,0,2,0,MODE_EMA,PRICE_CLOSE,1);
+   double EMAPrevious21 = iMA(NULL,0,21,0,MODE_EMA,PRICE_CLOSE,1);
+   */
+ 
+   
+    double CCI = iCCI(Symbol(),0,30,PRICE_CLOSE,1);   //20 is the count like 2 and 21 of the MAs...
+    //double CCIPrevious = iCCI(Symbol(),0,55,PRICE_CLOSE,2);  // i might change this to  1 and 2 (back)
+  
+  if (CCI > 200 && OverBoughtStart== false)
+  {
+  OverBoughtStart=true;
+  OverSoldStart=false;
+  }
+  
+  
+    if (CCI < -200 && OverSoldStart== false)
+  {
+  OverSoldStart=true;
+  OverBoughtStart = false;
+  }
+  
+  
+     if(CCI < 100 && OverBoughtStart )
+      {
+      OverBoughtStart = false;
+ 
+       Dirrection = "sell";
+      
+           ObjectCreate(name4,OBJ_ARROW, 0, TimeCurrent(), 0); //draw a dn arrow
+      		ObjectSet(name4, OBJPROP_STYLE, STYLE_SOLID);
+      		ObjectSet(name4, OBJPROP_SCALE, 16);
+      		ObjectSet(name4, OBJPROP_ARROWCODE,SYMBOL_THUMBSDOWN);
+     		   ObjectSet(name4, OBJPROP_COLOR,Red);
+    
+
+
+     
+     }
+     
+   if(CCI > -100 && OverSoldStart )
+    {
+       OverSoldStart=false;
+  
+           Dirrection = "buy";
+
+      
+            ObjectCreate(name3, OBJ_ARROW, 0, TimeCurrent(), 0); //draw an up arrow
+      		ObjectSet(name3, OBJPROP_STYLE, STYLE_SOLID);
+     		   ObjectSet(name3, OBJPROP_SCALE, 16);
+      		ObjectSet(name3, OBJPROP_ARROWCODE,SYMBOL_THUMBSUP );
+      		ObjectSet(name3, OBJPROP_COLOR,Green);  
+
+    }
+    
+    
+    
+   Text =   "Tick Value = " + DoubleToStr(MarketInfo(Symbol(), MODE_TICKVALUE), 4) +
+    	      "\n"+
+ 	         "Spread = " + DoubleToStr(MarketInfo(Symbol(), MODE_SPREAD), 0)
+ 	        +"\n" + " OverBoughtStart =  " + OverBoughtStart + "   OverSoldStart = " + OverSoldStart 
+ 	         +"\n"  + "CCI = " + CCI +  " Dirrection = " + Dirrection;
+
+   Comment(Text);
+   
+     
+     
+   for(int cnt=0;cnt<OrdersTotal();cnt++)
+     {
+       if(!OrderSelect(cnt, SELECT_BY_POS, MODE_TRADES))
+        Print("OrderModify error ",GetLastError());
+      if(OrderType()<=OP_SELL &&   
+         OrderSymbol()==Symbol() &&
+         OrderMagicNumber()==MagicNumber 
+         )  
+        {
+        //if(Volume[0]>1) return(0);  // I am removing it to see if since there are so many orders its causign an issue
+         if(OrderType()==OP_BUY)  
+           {
+         
+           
+            //close buy
+             if( Dirrection == "sell" )     // can add if I want to just exit || (CCIPrevious < (-1*CCIExitValue)
+                {    Dirrection = "";    //this will wait until the next set up - without it - it will exit and enter everyt time.
+                     OverBoughtStart = false;
+                     OverSoldStart = false; 
+                     
+                   if(!OrderClose(OrderTicket(),OrderLots(),OrderClosePrice(),Slippage,Red))
+                    { Print("OrderModify error ",GetLastError());}
+                   
+                   Print("CCI = " + CCI + " buy exit" );
+                  
+              }
+              /*
+            if(TrailingStop>0)  
+              {                 
+               if(Bid-OrderOpenPrice()>MyPoint*TrailingStop)
+                 {
+                  if(OrderStopLoss()<Bid-MyPoint*TrailingStop)
+                    {
+                      if(!OrderModify(OrderTicket(),OrderOpenPrice(),Bid-TrailingStop*MyPoint,OrderTakeProfit(),0,Green))
+                       Print("OrderModify error ",GetLastError());
+                     return(0);
+                    }
+                 }
+              }
+              */
+           }
+         else 
+           {
+           
+             //here close sell
+             
+           if( Dirrection == "buy"  )
+                {    
+                     Dirrection = "";
+                     OverBoughtStart = false;
+                     OverSoldStart = false;  
+                     
+                   if(!OrderClose(OrderTicket(),OrderLots(),OrderClosePrice(),Slippage,Red))
+                    { Print("OrderModify error ",GetLastError());}
+                   
+                   Print("CCI = " + CCI + " sell exit");
+                  
+                }
+         /*
+            if(TrailingStop>0)  
+              {                 
+               if((OrderOpenPrice()-Ask)>(MyPoint*TrailingStop))
+                 {
+                  if((OrderStopLoss()>(Ask+MyPoint*TrailingStop)) || (OrderStopLoss()==0))
+                    {
+                    if(!OrderModify(OrderTicket(),OrderOpenPrice(),Ask+MyPoint*TrailingStop,OrderTakeProfit(),0,Red))
+                     Print("OrderModify error ",GetLastError());
+                     return(0);
+                    }
+                 }
+              }
+              
+             */
+           }
+        }
+     }    
+  
+  
+  
+  if(Volume[0]>1) return(0);  // added it here before the oping of orders to see if that helps closign on time
+  
+  if( TotalOrdersCount()==0 ) 
+  {
+     int result=0;
+     
+     
+     
+     //buy
+    
+        
+        if (Dirrection == "buy")
+        {
+         Dirrection = "";
+         Print ("Dirrection = buy");
+            
+        result=OrderSend(Symbol(),OP_BUY,Lots,Ask,Slippage,0,0,"Fin "+Period() ,MagicNumber,0,Blue);  //result=OrderSend(Symbol(),OP_BUY,AdvancedMM(),Ask,Slippage,0,0,"EA Generator",MagicNumber,0,Blue);
+        if(result>0)
+        {
+         TheStopLoss=0;
+         TheTakeProfit=0;
+         if(TakeProfit>0) TheTakeProfit=Ask+TakeProfit*MyPoint;
+         if(StopLoss>0) TheStopLoss=Ask-StopLoss*MyPoint;
+          if(!OrderSelect(result,SELECT_BY_TICKET))
+          Print("OrderModify error ",GetLastError());
+          if(!OrderModify(OrderTicket(),OrderOpenPrice(),NormalizeDouble(TheStopLoss,Digits),NormalizeDouble(TheTakeProfit,Digits),0,Green))
+            Print("OrderModify error ",GetLastError());  
+     
+     
+                     OverBoughtStart = false;
+                     OverSoldStart = false;  
+       
+                           //draw the vertical in in the background
+      ObjectCreate(Vname,OBJ_VLINE,0,TimeCurrent(),0);
+      ObjectSet(Vname, OBJPROP_STYLE, STYLE_SOLID);
+      ObjectSet(Vname,OBJPROP_BACK,True);
+      ObjectSet(Vname, OBJPROP_COLOR,Green);
+      
+      ObjectCreate(name3, OBJ_ARROW, 0, TimeCurrent(), 0); //draw an up arrow
+      		ObjectSet(name3, OBJPROP_STYLE, STYLE_SOLID);
+     		   ObjectSet(name3, OBJPROP_SCALE, 16);
+      		ObjectSet(name3, OBJPROP_ARROWCODE, SYMBOL_ARROWUP);
+      		ObjectSet(name3, OBJPROP_COLOR,clrLime); 
+      		
+      		
+            
+       
+        }
+        return(0);
+   
+    } //end of current bar check
+ 
+   
+   
+     //sell
+ 
+       
+          if (Dirrection == "sell")
+          {
+            Dirrection = "";
+           Print ("Dirrection = sell");
+  
+        result=OrderSend(Symbol(),OP_SELL,Lots,Bid,Slippage,0,0,"Fin "+Period() ,MagicNumber,0,Red);  //result=OrderSend(Symbol(),OP_SELL,AdvancedMM(),Bid,Slippage,0,0,"EA Generator",MagicNumber,0,Red);
+        if(result>0)
+        {
+         TheStopLoss=0;
+         TheTakeProfit=0;
+         if(TakeProfit>0) TheTakeProfit=Bid-TakeProfit*MyPoint;
+         if(StopLoss>0) TheStopLoss=Bid+StopLoss*MyPoint;
+          if(!OrderSelect(result,SELECT_BY_TICKET))
+          Print("OrderModify error ",GetLastError());
+         if(!OrderModify(OrderTicket(),OrderOpenPrice(),NormalizeDouble(TheStopLoss,Digits),NormalizeDouble(TheTakeProfit,Digits),0,Green))
+          Print("OrderModify error ",GetLastError());
+       //sleep(100000); //sleep for 1.6 mins
+       
+                     OverBoughtStart = false;
+                     OverSoldStart = false;  
+       
+         //draw the vertical in in the background
+            //draw the vertical in in the background
+      ObjectCreate(Vname,OBJ_VLINE,0,TimeCurrent(),0);
+      ObjectSet(Vname, OBJPROP_STYLE, STYLE_SOLID);
+      ObjectSet(Vname,OBJPROP_BACK,True);
+      ObjectSet(Vname, OBJPROP_COLOR,Red);
+      
+             ObjectCreate(name4,OBJ_ARROW, 0, TimeCurrent(), 0); //draw a dn arrow
+      		ObjectSet(name4, OBJPROP_STYLE, STYLE_SOLID);
+      		ObjectSet(name4, OBJPROP_SCALE, 16);
+      		ObjectSet(name4, OBJPROP_ARROWCODE, SYMBOL_ARROWDOWN);
+     		   ObjectSet(name4, OBJPROP_COLOR,clrCrimson);
+     		   
+     		   
+       
+       
+       
+        }
+        return(0);
+    
+   } //end of current bar check
+ 
+  
+}  //end of no open orders check - this works much better then my old way!
+
+
+
+   return(0);
+}
+
+int TotalOrdersCount()
+{
+  int result=0;
+  for(int i=0;i<OrdersTotal();i++)
+  {
+     if(!OrderSelect(i,SELECT_BY_POS ,MODE_TRADES))
+      Print("OrderModify error ",GetLastError());
+     if (OrderMagicNumber()==MagicNumber) result++;
+
+   }
+  return (result);
+}
+
+/*
+double AdvancedMM()
+{
+ int i;
+ double AdvancedMMLots = 0;
+ bool profit1=false;
+ int SystemHistoryOrders=0;
+  for( i=0;i<OrdersHistoryTotal();i++)
+  {  OrderSelect(i,SELECT_BY_POS ,MODE_HISTORY);
+     if (OrderMagicNumber()==MagicNumber) SystemHistoryOrders++;
+  }
+ bool profit2=false;
+ int LO=0;
+ if(SystemHistoryOrders<2) return(Lots);
+ for( i=OrdersHistoryTotal()-1;i>=0;i--)
+  {
+     if(OrderSelect(i,SELECT_BY_POS ,MODE_HISTORY))
+     
+     if (OrderMagicNumber()==MagicNumber) 
+     {
+        if(OrderProfit()>=0 && profit1) return(Lots);
+        if( LO==0)
+        {  if(OrderProfit()>=0) profit1=true;
+           if(OrderProfit()<0)  return(OrderLots());
+           LO=1;
+        }
+        if(OrderProfit()>=0 && profit2) return(AdvancedMMLots);
+        if(OrderProfit()>=0) profit2=true;
+        if(OrderProfit()<0 ) 
+        {   profit1=false;
+            profit2=false;
+            AdvancedMMLots+=OrderLots();
+        }
+     }
+  }
+ return(AdvancedMMLots);
+}
+
+*/
