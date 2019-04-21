@@ -1,0 +1,408 @@
+// each charts needs its own magic number.. the EA filters not by symbol but by magic number
+
+/*
+
+I have to put in a check for thew 21 ema in the trend section.. the EMAs have to line up correctly..
+this is after i make sure the phase1 is workign correctly.
+
+
+
+
+
+
+
+
+*/
+
+
+
+extern int MagicNumber=2131;
+extern double Lots =0.01;
+static input string ExpertSettings__ = "CCI use 200 on GLD/SLV; 100 on FX pairs"; // use 200 on GLD/SLV; 100 on FX pairs
+extern double StopLoss=200;
+extern double TakeProfit=300;
+extern int TrailingStop=150;
+extern int Slippage=3;
+string Dirrection = "";
+string   Text="";
+int up,down;
+
+   double TriggerUP,TriggerDWN;
+   string Trend,phase1;
+
+//+------------------------------------------------------------------+
+//    expert start function
+//+------------------------------------------------------------------+
+int start()
+{
+  
+  
+   
+    
+  double MyPoint=Point;
+  if(Digits==3 || Digits==5) MyPoint=Point*10;
+  
+  double TheStopLoss=0;
+  double TheTakeProfit=0;
+  double timeNow = TimeToStr(TimeCurrent(), TIME_DATE|TIME_SECONDS);
+  
+        string name3 = "Up"+timeNow ;
+      string name4 = "Dn"+timeNow; 
+      string Vname = "Doji" +timeNow;
+      
+      string object_name="price"+timeNow;
+      string objName = "Bullseye"+timeNow;
+      
+
+   
+ 
+   double EMA21 = iMA(NULL,0,21,0,MODE_EMA,PRICE_CLOSE,0);
+   double EMA21p = iMA(NULL,0,21,0,MODE_EMA,PRICE_CLOSE,1);
+   double EMA50 = iMA(NULL,0,50,0,MODE_EMA,PRICE_CLOSE,0);  
+   double EMA100 = iMA(NULL,0,100,0,MODE_EMA,PRICE_CLOSE,0);  
+   
+
+
+ /// this is the trend calc section ////////////
+   if( EMA50> EMA100 )  // trending up
+      {
+
+      Trend= "UP";
+
+     
+     }
+     
+    if( EMA50<EMA100 )  //trending down
+
+    {
+      Trend="DOWN";
+    
+    }
+    
+    if(Volume[0]>1) return(0);  //if not the open of a mew bar - exit
+
+ /// this is the trend calc section ////////////
+ 
+ ///// This is the phase calc section ////////////   
+    double ZZ2=iCustom(NULL,0,"Zigzag_with_line_at_lows_and_line_at_highs",26,5,3,1,1);
+    double ZZ2p=iCustom(NULL,0,"Zigzag_with_line_at_lows_and_line_at_highs",26,5,3,1,2);
+    
+    double ZZ3=iCustom(NULL,0,"Zigzag_with_line_at_lows_and_line_at_highs",26,5,3,2,1);
+    double ZZ3p=iCustom(NULL,0,"Zigzag_with_line_at_lows_and_line_at_highs",26,5,3,2,2);
+    
+   
+    //phase1 = false;  // 1st "clear out" the phase1 variable then see if we have a new phase one each candle.
+    
+    if(ZZ3 == 0 && ZZ3p !=0)
+     { 
+       if(down ==0 && Trend== "UP" )
+       {
+        Print (" ZZ3 == 0 && ZZ3p !=0 " + timeNow);
+      //do buy stuff here //check the top
+	    phase1 = true;
+       up = 0;
+       down = 1;
+       }
+      }
+    if(ZZ2 == 0 && ZZ2p != 0 )
+     {
+       if(up ==0 && Trend=="DOWN" )
+       {
+         Print(" ZZ2 == 0 && ZZ2p != 0" + timeNow);
+       //do sell stuff here
+       phase1 = true;
+       up = 1;
+       down = 0;
+       }
+      }
+      
+    if(ZZ3 == 0 && ZZ3p !=0)   // this should clear out phase1 when its phase 2
+     { 
+     Print(" ZZ3 == 0 && ZZ3p !=0 on the clear start");
+       if(  Trend=="DOWN")
+       {
+        Print("clear phase - ZZ3 == 0 && ZZ3p !=0 " + timeNow);
+      //do buy stuff here //check the top
+	    phase1 = false;
+       }
+      }
+      
+     if(ZZ2 == 0 && ZZ2p != 0 )  // this should clear out phase1 when its phase 2
+       {
+        Print(" ZZ2 == 0 && ZZ2p != 0 on the clear start");
+       if(  Trend== "UP")
+       {
+         Print("clear phase - ZZ2 == 0 && ZZ2p != 0 " + timeNow);
+       //do sell stuff here
+       phase1 = false;
+       }
+      }
+      
+      
+
+ ///// This is the phase calc section ////////////   
+ 
+  
+  
+  
+ //// this is the tigger candle calc section ///////////////
+ 
+    //TriggerUP=0;  // zeroing out the trigger price
+   // TriggerDWN=0;  // zeroing out the trigger price
+    
+    
+    if (Trend== "UP")
+    { 
+    if ( (Close[0]> EMA21 ) && (Close[1] < EMA21p))
+     {
+     
+     //trigger candle
+     
+     TriggerUP = Close[0];
+     TriggerDWN =0;
+      
+     }
+    }
+    
+   if (Trend=="DOWN")
+   {
+    if ( (Close[0] < EMA21 ) && (Close[1] > EMA21p))
+     {
+     
+     //trigger candle
+     
+      TriggerDWN = Close[0];   
+      TriggerUP = 0; 
+     }
+    }    
+    
+ //// this is the tigger candle calc section ///////////////
+ 
+
+ 
+     
+    
+  
+   Text =  "Spread = " + DoubleToStr(MarketInfo(Symbol(), MODE_SPREAD), 0)
+ 	         +"\n"  + "EMA21 = " + EMA21 + "  " + "Close[0] = " + Close[0] +  " Close[1] = " + Close[1]
+ 	         +"\n"  + "ZZ2 = " + ZZ2 + "  " + "ZZ2p = " + ZZ2p 
+ 	         +"\n"  + "ZZ3 = " + ZZ3 + "  " + "ZZ3p = " + ZZ3p
+ 	         +"\n"  + "TriggerUP = " + TriggerUP + "  " + "TriggerDWN = " + TriggerDWN  
+ 	         +"\n"  + "phase1 = " + phase1 + " Trend = " + Trend 
+ 	         +"\n"  + "EMA50 = " + EMA50 + " EMA100 = " + EMA100
+ 	         +"\n"  + "up = " + up + " down = " + down;
+ 	         
+
+   Comment(Text);
+   
+     
+     
+   for(int cnt=0;cnt<OrdersTotal();cnt++)
+     {
+       if(!OrderSelect(cnt, SELECT_BY_POS, MODE_TRADES))
+        Print("OrderModify error ",GetLastError());
+      if(OrderType()<=OP_SELL &&   
+         OrderSymbol()==Symbol() &&
+         OrderMagicNumber()==MagicNumber 
+         )  
+        {
+        if(Volume[0]>1) return(0);
+         if(OrderType()==OP_BUY)  
+           {
+           
+            //close buy
+               if(ZZ2 == 0 && ZZ2p != 0 )
+                {
+           
+                   if(!OrderClose(OrderTicket(),OrderLots(),OrderClosePrice(),Slippage,Red))
+                    { Print("OrderModify error ",GetLastError());}
+                   
+                   Print("Buy order and we hit the highest high - close");
+                   
+                        TriggerUP=0;  // zeroing out the trigger price
+                        TriggerDWN=0;  // zeroing out the trigger price
+                        phase1 ="";
+                }
+            if(TrailingStop>0)  
+              {                 
+              
+                  if(OrderStopLoss()<EMA50)
+                    {
+                      if(!OrderModify(OrderTicket(),OrderOpenPrice(),EMA50,OrderTakeProfit(),0,Green))
+                       Print("OrderModify error ",GetLastError());
+                     return(0);
+                    }
+                         TriggerUP=0;  // zeroing out the trigger price
+                        TriggerDWN=0;  // zeroing out the trigger price
+                        phase1 ="";
+            }
+              
+           }
+         else 
+           {
+           
+             //here close sell
+             
+              if(ZZ3 == 0 && ZZ3p !=0)
+                {
+                   
+                   if(!OrderClose(OrderTicket(),OrderLots(),OrderClosePrice(),Slippage,Red))
+                    { Print("OrderModify error ",GetLastError());}
+                   
+                   Print("Sell order and we hit the lowest low - close");
+                  
+                }
+            if(TrailingStop>0)  
+              {                 
+              
+                  if(OrderStopLoss()>EMA50)
+                    {
+                    if(!OrderModify(OrderTicket(),OrderOpenPrice(),EMA50,OrderTakeProfit(),0,Red))
+                     Print("OrderModify error ",GetLastError());
+                     return(0);
+                    }
+                
+              }
+           } //end sell
+        } //end if the magic number matches
+     }  //end count all oders   
+  
+  
+  
+  
+  
+  if( TotalOrdersCount()==0 ) 
+  {
+     int result=0;
+     
+     
+     
+     //buy
+        if( phase1 == true  && (Close[0]>TriggerUP) ) 
+        {
+        
+        Print( "Phase1 int the uptrend and entry is closed higher then the trigger");
+        
+        
+
+        result=OrderSend(Symbol(),OP_BUY,Lots,Ask,Slippage,EMA50,0,"B 2Step" ,MagicNumber,0,Blue);  //result=OrderSend(Symbol(),OP_BUY,AdvancedMM(),Ask,Slippage,0,0,"EA Generator",MagicNumber,0,Blue);
+        if(result>0)
+        {
+         TheStopLoss=0;
+         TheTakeProfit=0;
+         if(TakeProfit>0) TheTakeProfit=Ask+TakeProfit*MyPoint;
+         if(StopLoss>0) TheStopLoss=Ask-StopLoss*MyPoint;
+          if(!OrderSelect(result,SELECT_BY_TICKET))
+          Print("OrderModify error ",GetLastError());
+          if(!OrderModify(OrderTicket(),OrderOpenPrice(),NormalizeDouble(TheStopLoss,Digits),NormalizeDouble(TheTakeProfit,Digits),0,Green))
+            Print("OrderModify error ",GetLastError());  
+     
+       
+                           //draw the vertical in in the background
+      ObjectCreate(Vname,OBJ_VLINE,0,TimeCurrent(),0);
+      ObjectSet(Vname, OBJPROP_STYLE, STYLE_SOLID);
+      ObjectSet(Vname,OBJPROP_BACK,True);
+      ObjectSet(Vname, OBJPROP_COLOR,Green);
+      
+      ObjectCreate(name3, OBJ_ARROW, 0, TimeCurrent(), 0); //draw an up arrow
+      		ObjectSet(name3, OBJPROP_STYLE, STYLE_SOLID);
+     		   ObjectSet(name3, OBJPROP_SCALE, 16);
+      		ObjectSet(name3, OBJPROP_ARROWCODE, SYMBOL_ARROWUP);
+      		ObjectSet(name3, OBJPROP_COLOR,clrLime); 
+      		
+      		TriggerUP=0;  // zeroing out the trigger price
+            TriggerDWN=0;  // zeroing out the trigger price
+            phase1 ="";
+            
+       
+        }
+        return(0);
+   
+    } //end of current bar check
+    
+   
+   
+   
+     //sell
+      if( phase1 == true  && (Close[0]<TriggerDWN) ) 
+        {
+        
+        Print( "Phase1 int the uptrend and entry is closed higher then the trigger");
+        
+  
+        result=OrderSend(Symbol(),OP_SELL,Lots,Bid,Slippage,EMA50,0,"S 2Step",MagicNumber,0,Red);  //result=OrderSend(Symbol(),OP_SELL,AdvancedMM(),Bid,Slippage,0,0,"EA Generator",MagicNumber,0,Red);
+        if(result>0)
+        {
+         TheStopLoss=0;
+         TheTakeProfit=0;
+         if(TakeProfit>0) TheTakeProfit=Bid-TakeProfit*MyPoint;
+         if(StopLoss>0) TheStopLoss=Bid+StopLoss*MyPoint;
+          if(!OrderSelect(result,SELECT_BY_TICKET))
+          Print("OrderModify error ",GetLastError());
+         if(!OrderModify(OrderTicket(),OrderOpenPrice(),NormalizeDouble(TheStopLoss,Digits),NormalizeDouble(TheTakeProfit,Digits),0,Green))
+          Print("OrderModify error ",GetLastError());
+       //sleep(100000); //sleep for 1.6 mins
+       
+         //draw the vertical in in the background
+            //draw the vertical in in the background
+      ObjectCreate(Vname,OBJ_VLINE,0,TimeCurrent(),0);
+      ObjectSet(Vname, OBJPROP_STYLE, STYLE_SOLID);
+      ObjectSet(Vname,OBJPROP_BACK,True);
+      ObjectSet(Vname, OBJPROP_COLOR,Red);
+      
+             ObjectCreate(name4,OBJ_ARROW, 0, TimeCurrent(), 0); //draw a dn arrow
+      		ObjectSet(name4, OBJPROP_STYLE, STYLE_SOLID);
+      		ObjectSet(name4, OBJPROP_SCALE, 16);
+      		ObjectSet(name4, OBJPROP_ARROWCODE, SYMBOL_ARROWDOWN);
+     		   ObjectSet(name4, OBJPROP_COLOR,clrCrimson);
+     		   
+     		   TriggerUP=0;  // zeroing out the trigger price
+            TriggerDWN=0;  // zeroing out the trigger price
+            phase1 ="";
+       
+       
+       
+        }
+        return(0);
+    
+   } //end of current bar check
+  
+  
+}  //end of no open orders check - this works much better then my old way!
+
+
+
+   return(0);
+}
+
+int TotalOrdersCount()
+{
+  int result=0;
+  for(int i=0;i<OrdersTotal();i++)
+  {
+     if(!OrderSelect(i,SELECT_BY_POS ,MODE_TRADES))
+      Print("OrderModify error ",GetLastError());
+     if (OrderMagicNumber()==MagicNumber) result++;
+
+   }
+  return (result);
+}
+
+/*
+
+  
+            ObjectCreate(name3, OBJ_ARROW, 0, TimeCurrent(), 0); //draw an up arrow
+      		ObjectSet(name3, OBJPROP_STYLE, STYLE_SOLID);
+     		   ObjectSet(name3, OBJPROP_SCALE, 16);
+      		ObjectSet(name3, OBJPROP_ARROWCODE,SYMBOL_THUMBSUP );
+      		ObjectSet(name3, OBJPROP_COLOR,Green);  
+      		
+      		
+      		
+      		
+      		 ObjectCreate(name4,OBJ_ARROW, 0, TimeCurrent(), 0); //draw a dn arrow
+      		ObjectSet(name4, OBJPROP_STYLE, STYLE_SOLID);
+      		ObjectSet(name4, OBJPROP_SCALE, 16);
+      		ObjectSet(name4, OBJPROP_ARROWCODE,SYMBOL_THUMBSDOWN);
+     		   ObjectSet(name4, OBJPROP_COLOR,Red);
+    */
