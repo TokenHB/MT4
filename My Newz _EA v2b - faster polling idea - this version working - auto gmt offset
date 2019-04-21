@@ -1,0 +1,1466 @@
+/*
+
+NOTES:
+
+well its working.. I need to see if it opens an order.. one last chance today @ 10/.. hoping it does.. 
+
+exp tab
+2018.03.23 10:00:12.258	MyNews_EA USDCHF,M15: Send error 130
+2018.03.23 10:00:12.102	MyNews_EA USDCHF,M15: Send error 4107
+2018.03.23 10:00:12.102	MyNews_EA USDCHF,M15: invalid price 0.94812000 for OrderSend function
+
+journal tab
+2018.03.23 10:00:12.258	'76090': order buy 0.01 AUDUSD opening at market sl: 0.92826 tp: 0.95126 failed [Invalid S/L or T/P]
+2018.03.23 10:00:12.102	'76090': order buy market 0.01 AUDUSD sl: 0.92826 tp: 0.95126
+
+
+looks like i need the bid/ask of the currecny pair i want to trade.. . rookie mistake ez fix!!!
+its workign tho!!! THANK GOD Y LOS SANTOS!! - fixed.. need to wait until sunday to see if that actually fixed the trading.. min the tiem by removign a few variables.
+
+
+
+NEXT UP:
+
+need to set up a way to poll multiple news releases at the same time.. currently, only the 1ast on the list is
+polled.. it needs to check if the time is now for the next even also.. if so, poll that oen 2 and the next.
+
+might make it check if its the same currency pairs,, if so.. one same and one opp cancell each other our.
+and if there are left over, then thats the action to take. black fonts do not act on the action so a red and 2 blacks  = red
+
+the alt would be that it opens a trade for each color not black.. then I could have 1 red and 1 black..
+one would be correct.. the other is a loss.
+
+
+https://youtu.be/iZYQl4J8meA?t=3m59s
+
+need to get it as close to real time as possible.. next up is only look for the data we need on the next update..
+so only [4] and [5] of the speific one we need.. polling it every .5 secs or 500 sleep only
+
+is i need to check to see if this work as is then add a -1 to:
+
+ if(TimeCurrent()-1>TimeNewsFunck(i) && TimeCurrent()-MinAfter*5<TimeNewsFunck(i) && StringFind(str1,NewsArr[1][i])>=0)  //if(TimeCurrent()+MinBefore*60>TimeNewsFunck(i) && TimeCurrent()-MinAfter*60<TimeNewsFunck(i) && StringFind(str1,NewsArr[1][i])>=0)
+          
+
+
+
+
+*/
+
+//+------------------------------------------------------------------+
+//|                                                         news.mq4 |
+//|                                             Copyright © 2016 Tor |
+//|                                              http://einvestor.ru |
+//+------------------------------------------------------------------+
+//https://www.mql5.com/en/code/16308
+#property copyright "Copyright © 2016 Tor"
+#property link      "http://einvestor.ru/"
+#property version   "1.0"
+#property description "This Expert Advisor loads the News from the site Investing.com without using .dll"
+#property strict
+
+input  int AfterNewsStop=1; // Indent after News, minuts
+input  int BeforeNewsStop=0; // Indent before News, minuts //might move this to 0 mins to have the EA poll the data at the news release time
+input bool NewsLight= false; // Enable light news
+input bool NewsMedium=false; // Enable medium news
+input bool NewsHard=true; // Enable hard news
+//input int  offset=3;     // Your Time Zone, GMT (for news)
+int offset;
+input string NewsSymb="USD,EUR,GBP,CHF,CAD,AUD,NZD,JPY"; //Currency to display the news (empty - only the current currencies) 
+input bool  DrawLines=true;       // Draw lines on the chart
+input bool  Next           = false;      // Draw only the future of news line
+input bool  Signal         = false;      // Signals on the upcoming news
+
+
+color highc          = clrRed;     // Colour important news
+color mediumc        = clrBlue;    // Colour medium news
+color lowc           = clrLime;    // The color of weak news
+int   Style          = 2;          // Line style
+int   Upd            = 86400;      // Period news updates in seconds  
+
+bool  Vhigh          = false;
+bool  Vmedium        = false;
+bool  Vlow           = false;
+int   MinBefore=0;
+int   MinAfter=0;
+
+int NomNews=0;
+string NewsArr[6][500];  //string NewsArr[4][1000];   //0-3 adding a 4th do is now a total of 5// 5 is the font color  // added one more for the trade dirrectionA which is 6 amd 7 is dirrectinB
+int Now=0;
+datetime LastUpd;
+string str1;
+
+//I added:
+
+int NewsEventnumber=0;
+bool results=false;
+double vbidA;
+double vaskA;
+double vbidB;
+double vaskB;
+
+
+/// Onada heat map variables:
+
+extern int MagicNumber=519904;
+string   Text="";
+datetime FileModifed;
+extern  string NewsFileName ="Todays_News_releases.csv";
+extern string filenameTrades="Trades.csv";
+double ColorLevel1,ColorLevel2,ColorLevel3,ColorLevel4;
+bool CalcTrades=true;
+bool OnadaCalcs=true;
+
+
+string TradePairA[300];      //TradePairA[30];
+string TradeDirectionA[300]; //TradeDirectionA[30];
+string TradePairB[300];      //TradePairB[30];
+string TradeDirectionB[300];  //TradeDirectionB[30];
+
+extern double Lots =0.01;
+extern double StopLoss=200;
+extern double TakeProfit=30;
+extern int TrailingStop=150;
+extern int Slippage=3;
+
+          
+int eMinutes[30];  //int eMinutes[10];
+datetime evTime[30];  //datetime evTime[10];
+
+string Pairs[28] = { "AUDCAD", 
+"AUDCHF", 
+"AUDJPY", 
+"AUDNZD", 
+"AUDUSD", 
+"CADCHF", 
+"CADJPY", 
+"CHFJPY", 
+"EURAUD", 
+"EURCAD", 
+"EURCHF", 
+"EURGBP", 
+"EURJPY", 
+"EURNZD", 
+"EURUSD", 
+"GBPAUD", 
+"GBPCAD", 
+"GBPCHF", 
+"GBPJPY", 
+"GBPNZD", 
+"GBPUSD", 
+"NZDCAD", 
+"NZDCHF", 
+"NZDJPY", 
+"NZDUSD", 
+"USDCAD", 
+"USDCHF", 
+"USDJPY"	};
+
+double PairValuesCurent[28] = { 0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0
+
+};
+
+double PairValuesPrevious[28] = { 0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0
+
+};
+
+
+double PairChange[28] = { 0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0
+
+};
+
+
+double PairChangeABS[28];
+
+double IndividualCurrencyChange[56];
+
+string IndividualCurrency[8] = {"AUD","CAD","CHF","EUR","GBP","JPY","NZD","USD"};
+int IndividualCurrencyTemp[8];  //was double
+int IndividualCurrencyTempSorted[8];
+
+
+
+
+//+------------------------------------------------------------------+
+//| Expert initialization function                                   |
+//+------------------------------------------------------------------+
+int OnInit()
+  {
+
+   if(StringLen(NewsSymb)>1)str1=NewsSymb;
+   else str1=Symbol();
+
+   Vhigh=NewsHard;
+   Vmedium=NewsMedium;
+   Vlow=NewsLight;
+   
+   MinBefore=BeforeNewsStop;
+   MinAfter=AfterNewsStop;
+   
+   offset = (MathRound(MathAbs(TimeGMTOffset()))/60)/60;
+
+  if(offset == 4)
+  {offset = 3;}
+  else if (offset == 5)
+   {offset = 2;}
+   
+
+//---
+   return(INIT_SUCCEEDED);
+  }
+//+------------------------------------------------------------------+
+//| Expert deinitialization function                                 |
+//+------------------------------------------------------------------+
+void OnDeinit(const int reason)
+  {
+   ObjectsDeleteAll(0,OBJ_VLINE);
+  }
+//+------------------------------------------------------------------+
+//| Expert tick function                                             |
+//+------------------------------------------------------------------+
+void OnTick()
+  {
+//---
+
+   double CheckNews=0;
+   if(AfterNewsStop>0)
+     {
+      if(TimeCurrent()-LastUpd>=Upd){Comment("News Loading...");Print("News Loading...");UpdateNews();LastUpd=TimeCurrent();Comment(""); OnadaCalcs=true; CalcTrades=true;}
+      WindowRedraw();
+      //---Draw a line on the chart news--------------------------------------------
+      if(DrawLines)
+        {
+         for(int i=0;i<NomNews;i++)
+           {
+            string Name=StringSubstr(TimeToStr(TimeNewsFunck(i),TIME_MINUTES)+"_"+NewsArr[1][i]+"_"+NewsArr[3][i],0,63);
+            if(NewsArr[3][i]!="")if(ObjectFind(Name)==0)continue;
+            if(StringFind(str1,NewsArr[1][i])<0)continue;
+            if(TimeNewsFunck(i)<TimeCurrent() && Next)continue;
+
+            color clrf = clrNONE;
+            if(Vhigh && StringFind(NewsArr[2][i],"High")>=0)clrf=highc;
+            if(Vmedium && StringFind(NewsArr[2][i],"Moderate")>=0)clrf=mediumc;
+            if(Vlow && StringFind(NewsArr[2][i],"Low")>=0)clrf=lowc;
+
+            if(clrf==clrNONE)continue;
+
+            if(NewsArr[3][i]!="")
+              {
+               ObjectCreate(Name,0,OBJ_VLINE,TimeNewsFunck(i),0);
+               ObjectSet(Name,OBJPROP_COLOR,clrf);
+               ObjectSet(Name,OBJPROP_STYLE,Style);
+               ObjectSetInteger(0,Name,OBJPROP_BACK,true);
+              }
+           }
+        }
+      //---------------event Processing------------------------------------
+      int i;
+      CheckNews=0;
+      for(i=0;i<NomNews;i++)
+        {
+         int power=0;
+         if(Vhigh && StringFind(NewsArr[2][i],"High")>=0)power=1;
+         if(Vmedium && StringFind(NewsArr[2][i],"Moderate")>=0)power=2;
+         if(Vlow && StringFind(NewsArr[2][i],"Low")>=0)power=3;
+         if(power==0)continue;
+         if(TimeCurrent()+MinBefore*60>TimeNewsFunck(i) && TimeCurrent()-MinAfter*60<TimeNewsFunck(i) && StringFind(str1,NewsArr[1][i])>=0)
+           {
+           
+           results=true;
+            CheckNews=1;
+            Print("i=" + i);
+
+             
+              if (i ==0 && NewsArr[5][1] == "&" && NewsArr[5][0] == "&" )
+              {
+              NewsEventnumber=i;
+              }
+             else if( i >0)
+             {
+              NewsEventnumber=i;
+             }
+
+                       
+             if(NewsArr[5][NewsEventnumber] != "&"){CheckNews=0; EvalNews(NewsEventnumber);  break;}
+            break;
+           }
+         else CheckNews=0;
+
+        }
+      if(CheckNews==1 && i!=Now && Signal) { Alert("In ",(int)(TimeNewsFunck(i)-TimeCurrent())/60," minutes released news ",NewsArr[1][i],"_",NewsArr[3][i]);Now=i;}
+/***  ***/
+     }
+
+   if(CheckNews>0)
+     {
+     Print("CheckNews = " + CheckNews); //<-- removed to help speed
+      
+     //UpdateNews(); //adding this gave me arry out of rqange
+     
+    //SpeedUpdateNews();LastUpd=TimeCurrent();  //<-- this is my super fast way.. only getting the [4]&[5] data we need form the newsreelase we need
+    
+    UpdateNews();LastUpd=TimeCurrent();  //<-- theis goes thru all of the news.. we only need [4] and [5]
+     
+     while(NewsArr[5][NewsEventnumber] == "&" || TimeCurrent()==TimeNewsFunck(NewsEventnumber)  )   //  while((NewsArr[4][NewsEventnumber] != "red" ) || (NewsArr[4][NewsEventnumber] != "green"))
+      {
+      if(TimeCurrent()+MinAfter*1>TimeNewsFunck(NewsEventnumber)){break;}
+      if(NewsArr[5][NewsEventnumber] != "&")break;
+     // Print("in while loop NewsArr[5][NewsEventnumber]= " + NewsArr[5][NewsEventnumber]); <-- removed to help speed
+      Sleep(1000); // cut back from 2000 
+      //UpdateNews();  // <-- this seamed to work.. let me try the speed one again
+      SpeedUpdateNews();
+      }
+
+         
+      /////  We are doing here if we are in the framework of the news
+      Comment("News time");   //<-- removed to help speed
+              //NewsTime=NewsArr[1][i];
+             //NewsName=NewsArr[3][i]; 
+      Print("News time - "+ TimeCurrent() + " / " + TimeLocal() + NewsArr[3][NewsEventnumber] + " : " + NewsArr[1][NewsEventnumber]+ " NewsEventnumber= "+ NewsEventnumber);  //<-- removed to help speed
+      Print("Font color is =" + NewsArr[4][NewsEventnumber] + ".");        //<-- removed to help speed
+      
+           CheckNews=0;
+     EvalNews(NewsEventnumber);
+
+        
+     }else{
+      // We are out of scope of the news release (No News)
+      Comment("No news + GMToffset = "+offset);
+      if(NewsArr[5][NewsEventnumber] != "&"){CheckNews=0; EvalNews(NewsEventnumber);  }
+      /*    
+      if( EvalNews(NewsEventnumber) == " red")
+        {
+        // CheckNews=0;
+         Print(NewsArr[3][NewsEventnumber] + " is " + NewsArr[4][NewsEventnumber] + " def worse!out of checknews = 1 ");
+        }
+        
+        //Print("Font color is =" + NewsArr[4][NewsEventnumber] + ".");
+      */
+
+     }
+
+// here is the Onada map code:
+
+if(OnadaCalcs)
+{
+
+OnadaCalcs= false;
+
+//this garthers the data     
+  for(int i=0; i<=27; i++)                // Cycle for tens  //corrected
+     {
+      PairValuesCurent[i] =  NormalizeDouble(iClose(Pairs[i],PERIOD_D1,1), 5);  //this works for the pervious candle
+      PairValuesPrevious[i] =  NormalizeDouble(iClose(Pairs[i],PERIOD_D1,21),5);  //was 24
+      
+      if(PairValuesPrevious[i] != 0)  
+      {
+      PairChange[i] = NormalizeDouble(((PairValuesCurent[i] - PairValuesPrevious[i])/PairValuesPrevious[i]) *100 , 2);
+
+      PairChangeABS[i] = MathAbs(PairChange[i]);
+
+      
+      IndividualCurrencyChange[(i*2)] = PairChange[i];                            //here the iindivial currency gets a change percent vaule
+      IndividualCurrencyChange[(i*2)+1] = IndividualCurrencyChange[(i*2)] * -1;
+
+      
+      
+      }
+      
+      
+      
+       if ((PairChange[i] >100 ) || (PairChange[i] <-100)){ PairChange[i]= (PairChange[i]/100);}
+      
+     }
+ 
+//this needs to subtract them
+
+    int    maxValueIdx=ArrayMaximum(PairChangeABS,WHOLE_ARRAY,0);
+ 
+ 
+ double minimalPercentChangePerColor =  PairChangeABS[maxValueIdx] / 5;
+
+ 
+ // here  assign a value to each minimal change to get the streght
+
+ColorLevel1 = minimalPercentChangePerColor;
+ColorLevel2 = minimalPercentChangePerColor*2;
+ColorLevel3 = minimalPercentChangePerColor*3; 
+ColorLevel4 = minimalPercentChangePerColor*4;
+
+
+
+
+ 
+ for(int j=0; j<56; j++)                // Cycle for tens    //fixed!  // was for(int j=0; j<=56; j++) 
+     {
+     // Print(" line 460 j = " + j );
+      if( (IndividualCurrencyChange[j] <= ColorLevel1 )&& (IndividualCurrencyChange[j] >=  ColorLevel1*-1))
+      {
+  
+       IndividualCurrencyChange[j] = 0;
+  
+      }
+ 
+
+ 
+       if( (IndividualCurrencyChange[j] <= ColorLevel2 )&& (IndividualCurrencyChange[j] >  ColorLevel1))
+      {
+  
+       IndividualCurrencyChange[j] = 1;
+  
+      }
+ 
+        if( (IndividualCurrencyChange[j] <= ColorLevel3 )&& (IndividualCurrencyChange[j] >  ColorLevel2))
+      {
+
+       IndividualCurrencyChange[j] = 2;
+ 
+      }
+ 
+ 
+       if( (IndividualCurrencyChange[j] <= ColorLevel4 )&& (IndividualCurrencyChange[j] >  ColorLevel3))
+      {
+    
+       IndividualCurrencyChange[j] = 3;
+  
+      }
+      
+      if( IndividualCurrencyChange[j] >  ColorLevel4)
+      {
+   
+       IndividualCurrencyChange[j] = 4;
+
+      }
+ 
+ //cold section or the negative side
+  
+       if( (IndividualCurrencyChange[j] >= ColorLevel2* -1 )&& (IndividualCurrencyChange[j] <  ColorLevel1* -1))
+      {
+  
+       IndividualCurrencyChange[j] = -1;
+  
+      }
+ 
+        if( (IndividualCurrencyChange[j] >= ColorLevel3* -1 )&& (IndividualCurrencyChange[j] <  ColorLevel2* -1))
+      {
+  
+       IndividualCurrencyChange[j] = -2;
+   
+      }
+ 
+ 
+       if( (IndividualCurrencyChange[j] >= ColorLevel4* -1 )&& (IndividualCurrencyChange[j] <  ColorLevel3* -1))
+      {
+  
+       IndividualCurrencyChange[j] = -3;
+   
+      }
+      
+      if( IndividualCurrencyChange[j] < ( ColorLevel4 * -1))
+      {
+    
+       IndividualCurrencyChange[j] = -4;
+     
+      }
+ 
+
+ 
+    } //end of for loop to assign a heat rating to the indivudial currencies
+ 
+ 
+ // here I have to get the values of each currecny per thier index and add them up
+ //https://docs.google.com/spreadsheets/d/1Jp2_0HGzdX8PQu8CnGaT6Ergoo5A5uNCGkfBY7KkCE4/edit#gid=2082978424
+
+IndividualCurrencyTemp[0] = IndividualCurrencyChange[0] + IndividualCurrencyChange[2] + IndividualCurrencyChange[4] 
+                            + IndividualCurrencyChange[6] + IndividualCurrencyChange[8] + IndividualCurrencyChange[17]
+                            + IndividualCurrencyChange[31];
+                            
+                        
+IndividualCurrencyTemp[1] = IndividualCurrencyChange[1] + IndividualCurrencyChange[10] + IndividualCurrencyChange[12] + IndividualCurrencyChange[19] + IndividualCurrencyChange[33] + IndividualCurrencyChange[43] + IndividualCurrencyChange[51];
+
+IndividualCurrencyTemp[2] = IndividualCurrencyChange[3] + IndividualCurrencyChange[11] + IndividualCurrencyChange[14] + IndividualCurrencyChange[21] + IndividualCurrencyChange[35] + IndividualCurrencyChange[45] + IndividualCurrencyChange[53];
+
+IndividualCurrencyTemp[3] = IndividualCurrencyChange[16] + IndividualCurrencyChange[18] + IndividualCurrencyChange[20] + IndividualCurrencyChange[22] + IndividualCurrencyChange[24] + IndividualCurrencyChange[26] + IndividualCurrencyChange[28];
+
+IndividualCurrencyTemp[4] = IndividualCurrencyChange[23] + IndividualCurrencyChange[30] + IndividualCurrencyChange[32] + IndividualCurrencyChange[34] + IndividualCurrencyChange[36] + IndividualCurrencyChange[38] + IndividualCurrencyChange[40];
+
+IndividualCurrencyTemp[5] = IndividualCurrencyChange[5] + IndividualCurrencyChange[13] + IndividualCurrencyChange[15] + IndividualCurrencyChange[25] + IndividualCurrencyChange[37] + IndividualCurrencyChange[47] + IndividualCurrencyChange[55];
+
+IndividualCurrencyTemp[6] = IndividualCurrencyChange[7] + IndividualCurrencyChange[27] + IndividualCurrencyChange[39] + IndividualCurrencyChange[42] + IndividualCurrencyChange[44] + IndividualCurrencyChange[46] + IndividualCurrencyChange[48];
+
+IndividualCurrencyTemp[7] = IndividualCurrencyChange[9] + IndividualCurrencyChange[29] + IndividualCurrencyChange[41] + IndividualCurrencyChange[49] + IndividualCurrencyChange[50] + IndividualCurrencyChange[52] + IndividualCurrencyChange[54];
+
+                          
+// find which is the strongest currecny
+  int    StrongestIdx=ArrayMaximum(IndividualCurrencyTemp,WHOLE_ARRAY,0); // here we check the results of the temp and get teh max and mix ones
+  
+  int    WeakestIdx=ArrayMinimum(IndividualCurrencyTemp,WHOLE_ARRAY,0); // we can use this later to see if vaule is furthest form the new release curancy =  abs(news curency [indx] - StrongestIdx) > news curency [indx] - WeakestIdx :: then pair the news  oen with the result
+  
+string   Text31 = "Strongest Currency = " +  IndividualCurrency[StrongestIdx] + " at " + IndividualCurrencyTemp[StrongestIdx];
+string   Text32 = "Weakest Currency = " +  IndividualCurrency[WeakestIdx] + " at " + IndividualCurrencyTemp[WeakestIdx];  
+  
+  
+ //next eval currecny
+
+
+
+
+ArrayCopy(IndividualCurrencyTempSorted,IndividualCurrencyTemp,0,0,WHOLE_ARRAY); // make a dup
+
+ArraySort(IndividualCurrencyTempSorted,WHOLE_ARRAY,0,MODE_ASCEND); // now its sorted
+
+
+ if(CalcTrades)
+ {
+ CalcTrades=false;
+ 
+ string TradePairSearch="";
+ 
+ 
+ for(int q=0; q<NomNews; q++)  // for(int q=0; q<ArraySize(evTitle)-1; q++) //this part of the check works.
+    {   
+    
+
+    
+// A TRADES 
+
+if((NewsArr[1][q] != IndividualCurrency[StrongestIdx]) && (NewsArr[1][q] != IndividualCurrency[WeakestIdx]))  // this was || or I changed it to and &&  ///this is not working-->  JPYJPY,opp,AUDJPY,opp  (AUD is the weakest)
+  {
+
+    
+    Print(NewsArr[1][q] + " isn not the strongest "+ IndividualCurrency[StrongestIdx]+ " nor the weakest "+IndividualCurrency[WeakestIdx] );
+    TradePairA[q] = NewsArr[1][q] + IndividualCurrency[StrongestIdx]; // arry out of range here  <<<----------------  // TradePairA[q] = NewsArr[1][q] + IndividualCurrency[StrongestIdx];
+    TradeDirectionA[q] ="same";  // will become TradeDirectionA[q]
+    
+    // here is where I can add the trade direction - either with or the opposite of the new release results
+    
+          for(int k=0; k<=27; k++) 
+          {
+           if(Pairs[k] == TradePairA[q]) //if its a vaild pair - set teh varibles = and stop searching.. if nto keep looking
+           {
+           TradePairSearch = TradePairA[q];
+           break; 
+           }  
+          
+          }
+
+
+    if (TradePairSearch   !=  TradePairA[q]) //if not found in the for loop - then flip the currencies
+    {
+    
+     TradePairA[q] = IndividualCurrency[StrongestIdx] + NewsArr[1][q]; // will become NewsArr[1]
+     
+     // here is where I can add the trade direction - either with or the opposite of the new release results
+     
+     //if the news curremcy is on the left, then go with the forcast - if its ont he right, then its  the opposite
+     TradeDirectionA[q] ="opp"; //  will become TradeDirectionA[q]
+    
+      }
+   
+ 
+//B TRADES = b side 
+ 
+   TradePairB[q] = NewsArr[1][q] + IndividualCurrency[WeakestIdx];  // will become NewsArr[1]
+   TradeDirectionB[q] ="same";  //will become TradeDirectionA[q]
+   
+         for(int l=0; l<=27; l++) 
+          {
+           if(Pairs[l] == TradePairB[q]) //if its a vaild pair - set teh varibles = and stop searching.. if nto keep looking
+           {
+           TradePairSearch = TradePairB[q];
+           break; 
+           }  
+          
+          }
+   
+   
+     if (TradePairSearch   !=  TradePairB[q]) //if not then flip the currencies
+      {
+    
+       TradePairB[q] = IndividualCurrency[WeakestIdx] + NewsArr[1][q];  // will become NewsArr[1]
+       TradeDirectionB[q] ="opp";  //will become TradeDirectionA[q]
+       
+       }
+       
+    }// end of news currecy = to strongest or weakest
+   else if (NewsArr[1][q] == IndividualCurrency[StrongestIdx])   
+    {
+      Print( NewsArr[1][q] + " is the same as the strongest - needs to be changed");
+      TradePairA[q] = NewsArr[1][q] + IndividualCurrency[WeakestIdx];  // will become NewsArr[1]
+      TradeDirectionA[q] ="same";  //will become TradeDirectionA[q]
+    
+    // here is where I can add the trade direction - either with or the opposite of the new release results
+    
+          for(int r=0; r<=27; r++) 
+          {
+           if(Pairs[r] == TradePairA[q]) //if its a vaild pair - set teh varibles = and stop searching.. if nto keep looking
+           {
+           TradePairSearch = TradePairA[q];  
+           break; 
+           }  
+          
+          }
+
+
+    if (TradePairSearch   !=  TradePairA[q]) //if not found in the for loop - then flip the currencies
+    {
+    
+     TradePairA[q] = IndividualCurrency[WeakestIdx] + NewsArr[1][q]; // will become NewsArr[1]
+     
+     // here is where I can add the trade direction - either with or the opposite of the new release results
+     
+     //if the news curremcy is on the left, then go with the forcast - if its ont he right, then its  the opposite
+     TradeDirectionA[q] ="opp"; //will become TradeDirectionA[q]
+    
+      }
+    
+  
+      int NextStrongest;
+      NextStrongest=  ArrayBsearch(IndividualCurrencyTemp, IndividualCurrencyTempSorted[6],WHOLE_ARRAY,0,MODE_ASCEND);
+    
+    //B TRADES = b side 
+ 
+         TradePairB[q] = NewsArr[1][q] + IndividualCurrency[NextStrongest]; // will become NewsArr[1]
+         TradeDirectionB[q] ="same";  //will become TradeDirectionA[q]
+         
+               for(int t=0; t<=27; t++) 
+                {
+                 if(Pairs[t] == TradePairB[q]) //if its a vaild pair - set teh varibles = and stop searching.. if nto keep looking
+                 {
+                 TradePairSearch = TradePairB[q];
+                 break; 
+                 }  
+                
+                }
+         
+         
+           if (TradePairSearch   !=  TradePairB[q]) //if not then flip the currencies
+            {
+          
+             TradePairB[q] = IndividualCurrency[NextStrongest] + NewsArr[1][q]; // will become NewsArr[1]
+             TradeDirectionB[q] ="opp"; //will become TradeDirectionA[q]
+       
+       }
+    
+    
+    
+    } //end of news = stronest
+    
+   else if (NewsArr[1][q] == IndividualCurrency[WeakestIdx]) // will become NewsArr[1]
+    {
+       Print( NewsArr[1][q] + " is the same as the weakest - needs to be changed");
+      TradePairA[q] = NewsArr[1][q] + IndividualCurrency[StrongestIdx]; // will become NewsArr[1]
+      TradeDirectionA[q] ="same";  //will become TradeDirectionA[q]
+    
+    // here is where I can add the trade direction - either with or the opposite of the new release results
+    
+          for(int s=0; s<=27; s++) 
+          {
+           if(Pairs[s] == TradePairA[q]) //if its a vaild pair - set teh varibles = and stop searching.. if nto keep looking
+           {
+           TradePairSearch = TradePairA[q];
+           break; 
+           }  
+          
+          }
+
+
+    if (TradePairSearch   !=  TradePairA[q]) //if not found in the for loop - then flip the currencies
+    {
+    
+     TradePairA[q] = IndividualCurrency[StrongestIdx] + NewsArr[1][q];  // will become NewsArr[1]
+     
+     // here is where I can add the trade direction - either with or the opposite of the new release results
+     
+     //if the news curremcy is on the left, then go with the forcast - if its ont he right, then its  the opposite
+     TradeDirectionA[q] ="opp";  //will become TradeDirectionA[q]
+    
+      }
+    
+    
+      int NextWeakest;   
+      NextWeakest =  ArrayBsearch(IndividualCurrencyTemp, IndividualCurrencyTempSorted[1],WHOLE_ARRAY,0,MODE_ASCEND); 
+
+    
+        //B TRADES = b side 
+ 
+         TradePairB[q] = NewsArr[1][q] + IndividualCurrency[NextWeakest];  // will become NewsArr[1]
+         TradeDirectionB[q] ="same";  //will become TradeDirectionA[q]
+         
+               for(int u=0; u<=27; u++) 
+                {
+                 if(Pairs[u] == TradePairB[q]) //if its a vaild pair - set teh varibles = and stop searching.. if nto keep looking
+                 {
+                 TradePairSearch = TradePairB[q];
+                 break; 
+                 }  
+                
+                }
+         
+         
+           if (TradePairSearch   !=  TradePairB[q]) //if not then flip the currencies
+            {
+          
+             TradePairB[q] = IndividualCurrency[NextWeakest] + NewsArr[1][q];  // will become NewsArr[1]
+             TradeDirectionB[q] ="opp";  //will become TradeDirectionA[q]
+    
+         } //end of news = weakest   
+    
+    
+    
+    }//end of if they are
+    Print("TradePairA[" +q+ "] =" + TradePairA[q]+"!");             //<-- removed to help speed
+    Print("TradePairB[" +q+ "] =" + TradePairB[q]+"!");            //<-- removed to help speed
+    Print("TradeDirectionA[" +q+ "] =" + TradeDirectionA[q]+"!");  //<-- removed to help speed
+    Print("TradeDirectionB[" +q+ "] =" + TradeDirectionB[q]+"!");  //<-- removed to help speed
+    
+   }  //end of check and assign the trades and dirrections
+   
+ 
+ } //if write is true  
+
+
+ }//end of onanda calcs
+
+
+}
+  
+  
+ string EvalNews(int NewzNumber){
+ 
+if(results==true)
+{
+results=false;
+//CheckNews=0;
+
+
+  double MyPoint=Point;
+  if(Digits==3 || Digits==5) MyPoint=Point*10;
+  
+  double TheStopLoss=0;
+  double TheTakeProfit=0;
+  
+  /*  i am trying to move it closer to the top
+   double vbidA    = MarketInfo(TradePairA[NewzNumber],MODE_BID);
+   double vaskA    = MarketInfo(TradePairA[NewzNumber],MODE_ASK);
+   double vbidB    = MarketInfo(TradePairB[NewzNumber],MODE_BID);
+   double vaskB    = MarketInfo(TradePairB[NewzNumber],MODE_ASK);
+  */
+  
+  
+  if( NewsArr[5][NewzNumber] != "&")  //was if NewzNumber>0
+  {
+ //Print(" EvalNews out of checknews = 1 NewsArr[5][NewzNumber]= " + NewsArr[5][NewzNumber]);
+  //  Print("EvalNews out of checknews = 1 NewsArr[4][NewzNumber]= " + NewsArr[4][NewzNumber]);
+  //   Print(" EvalNews out of checknews = 1 NewzNumber = " + NewzNumber);
+
+     }
+    
+  int result=0;
+  
+     vbidA    = MarketInfo(TradePairA[NewzNumber],MODE_BID);
+     vaskA    = MarketInfo(TradePairA[NewzNumber],MODE_ASK);
+     vbidB    = MarketInfo(TradePairB[NewzNumber],MODE_BID);
+     vaskB    = MarketInfo(TradePairB[NewzNumber],MODE_ASK);
+     
+     //here I have to eval TradeDirectionA[NewzNumber] for the A trades and TradeDirectionB[NewzNumber] for the B sides
+       if(NewsArr[4][NewzNumber] == " red")
+        {
+        
+         Print("TradeDirectionA[NewzNumber]= " + TradeDirectionA[NewzNumber]); //<-- removed to help speed
+         Print("TradeDirectionB[NewzNumber]= " + TradeDirectionB[NewzNumber]); //<-- removed to help speed
+         
+      // if( TotalOrdersCount()==0 ) 
+      //  {
+      
+        Print(NewsArr[3][NewzNumber] + " is " + NewsArr[4][NewzNumber] + " EvalNews def worse!out of checknews = 1 ");  //<-- removed to help speed
+      
+         if (TradeDirectionA[NewzNumber] == "same")
+         {
+          //send sell order
+          
+          //might have to put the order stuff before sending it.. every sec counts
+          
+         // double vbidA;
+//double vaskA;
+//double vbidB;
+//double vaskB;
+
+          
+         TheStopLoss=0;
+         TheTakeProfit=0;
+         if(TakeProfit>0) TheTakeProfit=vbidA-TakeProfit*MyPoint;
+         if(StopLoss>0) TheStopLoss=vbidA+StopLoss*MyPoint;
+         
+        result=OrderSend(TradePairA[NewzNumber],OP_SELL,Lots,vbidA,Slippage,TheStopLoss,TheTakeProfit,"NewzA"+Period(),MagicNumber,0,Red);  //result=OrderSend(Symbol(),OP_SELL,AdvancedMM(),Bid,Slippage,0,0,"EA Generator",MagicNumber,0,Red);
+        if(result>0)
+        {
+        /*
+         TheStopLoss=0;
+         TheTakeProfit=0;
+         if(TakeProfit>0) TheTakeProfit=Bid-TakeProfit*MyPoint;
+         if(StopLoss>0) TheStopLoss=Bid+StopLoss*MyPoint;
+          if(!OrderSelect(result,SELECT_BY_TICKET))
+          Print("OrderModify error ",GetLastError());
+         if(!OrderModify(OrderTicket(),OrderOpenPrice(),NormalizeDouble(TheStopLoss,Digits),NormalizeDouble(TheTakeProfit,Digits),0,Green))
+          Print("OrderModify error ",GetLastError());
+          */
+          }
+          else
+          {
+          Print("Send error ",GetLastError());
+          }
+          
+          
+         }//same
+          
+          //send buy
+           if (TradeDirectionA[NewzNumber] == "opp")
+         {
+          TheStopLoss=0;
+         TheTakeProfit=0;
+         if(TakeProfit>0) TheTakeProfit=vaskA+TakeProfit*MyPoint;
+         if(StopLoss>0) TheStopLoss=vaskA-StopLoss*MyPoint;
+          result=OrderSend(TradePairA[NewzNumber],OP_BUY,Lots,vaskA,Slippage,TheStopLoss,TheTakeProfit,"NewzA"+Period() ,MagicNumber,0,Blue);  //result=OrderSend(Symbol(),OP_BUY,AdvancedMM(),Ask,Slippage,0,0,"EA Generator",MagicNumber,0,Blue);
+          if(result>0)
+          {
+         /*
+         TheStopLoss=0;
+         TheTakeProfit=0;
+         if(TakeProfit>0) TheTakeProfit=Ask+TakeProfit*MyPoint;
+         if(StopLoss>0) TheStopLoss=Ask-StopLoss*MyPoint;
+          if(!OrderSelect(result,SELECT_BY_TICKET))
+          Print("OrderModify error ",GetLastError());
+          if(!OrderModify(OrderTicket(),OrderOpenPrice(),NormalizeDouble(TheStopLoss,Digits),NormalizeDouble(TheTakeProfit,Digits),0,Green))
+            Print("OrderModify error ",GetLastError());  
+            */
+           }
+             else
+          {
+          Print("Send error ",GetLastError());
+          }
+           
+           
+          }//opp
+          
+          
+        //B sides  
+         if (TradeDirectionB[NewzNumber] == "same")
+         {
+          //send sell order
+          
+         TheStopLoss=0;
+         TheTakeProfit=0;
+         if(TakeProfit>0) TheTakeProfit=vbidB-TakeProfit*MyPoint;
+         if(StopLoss>0) TheStopLoss=vbidB+StopLoss*MyPoint;
+          
+         result=OrderSend(TradePairB[NewzNumber],OP_SELL,Lots,vbidB,Slippage,TheStopLoss,TheTakeProfit,"NewzB"+Period(),MagicNumber,0,Red);  //result=OrderSend(Symbol(),OP_SELL,AdvancedMM(),Bid,Slippage,0,0,"EA Generator",MagicNumber,0,Red);
+        if(result>0)
+        {
+        /*
+         TheStopLoss=0;
+         TheTakeProfit=0;
+         if(TakeProfit>0) TheTakeProfit=Bid-TakeProfit*MyPoint;
+         if(StopLoss>0) TheStopLoss=Bid+StopLoss*MyPoint;
+          if(!OrderSelect(result,SELECT_BY_TICKET))
+          Print("OrderModify error ",GetLastError());
+         if(!OrderModify(OrderTicket(),OrderOpenPrice(),NormalizeDouble(TheStopLoss,Digits),NormalizeDouble(TheTakeProfit,Digits),0,Green))
+          Print("OrderModify error ",GetLastError());
+          */
+          }
+          
+          else
+          {
+          Print("Send error ",GetLastError());
+          }
+           
+          
+         }//same
+          
+          
+       if (TradeDirectionB[NewzNumber] == "opp")
+         {
+          //send buy order order
+          
+          TheStopLoss=0;
+         TheTakeProfit=0;
+         if(TakeProfit>0) TheTakeProfit=vaskB+TakeProfit*MyPoint;
+         if(StopLoss>0) TheStopLoss=vaskB-StopLoss*MyPoint;
+         result=OrderSend(TradePairB[NewzNumber],OP_BUY,Lots,vaskB,Slippage,TheStopLoss,TheTakeProfit,"NewzB"+Period() ,MagicNumber,0,Blue);  //result=OrderSend(Symbol(),OP_BUY,AdvancedMM(),Ask,Slippage,0,0,"EA Generator",MagicNumber,0,Blue);
+        if(result>0)
+        {
+        /*
+         TheStopLoss=0;
+         TheTakeProfit=0;
+         if(TakeProfit>0) TheTakeProfit=Ask+TakeProfit*MyPoint;
+         if(StopLoss>0) TheStopLoss=Ask-StopLoss*MyPoint;
+          if(!OrderSelect(result,SELECT_BY_TICKET))
+          Print("OrderModify error ",GetLastError());
+          if(!OrderModify(OrderTicket(),OrderOpenPrice(),NormalizeDouble(TheStopLoss,Digits),NormalizeDouble(TheTakeProfit,Digits),0,Green))
+            Print("OrderModify error ",GetLastError()); 
+            */ 
+          }
+           else
+          {
+          Print("Send error ",GetLastError());
+          }
+         
+        
+         }//opp
+         
+      //   }//end of no open orders
+        }//end of if red font
+        
+       if(NewsArr[4][NewzNumber] == " green")
+        {
+        
+         Print(NewsArr[3][NewzNumber] + " is " + NewsArr[4][NewzNumber] + " EvalNews def better!out of checknews = 1 ");
+         Print("TradeDirectionA[NewzNumber]= " + TradeDirectionA[NewzNumber]);
+         Print("TradeDirectionB[NewzNumber]= " + TradeDirectionB[NewzNumber]);
+         
+     //   if( TotalOrdersCount()==0 ) 
+     //    {
+         if (TradeDirectionA[NewzNumber] == "same")
+         {
+          //send buy order
+          
+          TheStopLoss=0;
+         TheTakeProfit=0;
+         if(TakeProfit>0) TheTakeProfit=vaskA+TakeProfit*MyPoint;
+         if(StopLoss>0) TheStopLoss=vaskA-StopLoss*MyPoint;
+        result=OrderSend(TradePairA[NewzNumber],OP_BUY,Lots,vaskA,Slippage,TheStopLoss,TheTakeProfit,"NewzA"+Period() ,MagicNumber,0,Blue);  //result=OrderSend(Symbol(),OP_BUY,AdvancedMM(),Ask,Slippage,0,0,"EA Generator",MagicNumber,0,Blue);
+        if(result>0)
+        {
+        /*
+         TheStopLoss=0;
+         TheTakeProfit=0;
+         if(TakeProfit>0) TheTakeProfit=Ask+TakeProfit*MyPoint;
+         if(StopLoss>0) TheStopLoss=Ask-StopLoss*MyPoint;
+          if(!OrderSelect(result,SELECT_BY_TICKET))
+          Print("OrderModify error ",GetLastError());
+          if(!OrderModify(OrderTicket(),OrderOpenPrice(),NormalizeDouble(TheStopLoss,Digits),NormalizeDouble(TheTakeProfit,Digits),0,Green))
+            Print("OrderModify error ",GetLastError()); 
+            */ 
+            }
+            else
+          {
+          Print("Send error ",GetLastError());
+          }
+            
+          }//same
+          
+        if (TradeDirectionA[NewzNumber] == "opp")
+         {
+          //send sell order order
+          
+         TheStopLoss=0;
+         TheTakeProfit=0;
+         if(TakeProfit>0) TheTakeProfit=vbidA-TakeProfit*MyPoint;
+         if(StopLoss>0) TheStopLoss=vbidA+StopLoss*MyPoint;
+         result=OrderSend(TradePairA[NewzNumber],OP_SELL,Lots,vbidA,Slippage,TheStopLoss,TheTakeProfit,"NewzA"+Period(),MagicNumber,0,Red);  //result=OrderSend(Symbol(),OP_SELL,AdvancedMM(),Bid,Slippage,0,0,"EA Generator",MagicNumber,0,Red);
+        if(result>0)
+        {
+         /*
+         TheStopLoss=0;
+         TheTakeProfit=0;
+         if(TakeProfit>0) TheTakeProfit=Bid-TakeProfit*MyPoint;
+         if(StopLoss>0) TheStopLoss=Bid+StopLoss*MyPoint;
+          if(!OrderSelect(result,SELECT_BY_TICKET))
+          Print("OrderModify error ",GetLastError());
+         if(!OrderModify(OrderTicket(),OrderOpenPrice(),NormalizeDouble(TheStopLoss,Digits),NormalizeDouble(TheTakeProfit,Digits),0,Green))
+          Print("OrderModify error ",GetLastError());
+          */
+          }
+           else
+          {
+          Print("Send error ",GetLastError());
+          }
+          
+          
+         }//opp
+          
+        //B sides  
+         if (TradeDirectionB[NewzNumber] == "same")
+         {
+          //send buy order
+          
+         TheStopLoss=0;
+         TheTakeProfit=0;
+         if(TakeProfit>0) TheTakeProfit=vaskB+TakeProfit*MyPoint;
+         if(StopLoss>0) TheStopLoss=vaskB-StopLoss*MyPoint;
+        result=OrderSend(TradePairB[NewzNumber],OP_BUY,Lots,vaskB,Slippage,TheStopLoss,TheTakeProfit,"NewzB"+Period() ,MagicNumber,0,Blue);  //result=OrderSend(Symbol(),OP_BUY,AdvancedMM(),Ask,Slippage,0,0,"EA Generator",MagicNumber,0,Blue);
+        if(result>0)
+        {
+        /*
+         TheStopLoss=0;
+         TheTakeProfit=0;
+         if(TakeProfit>0) TheTakeProfit=Ask+TakeProfit*MyPoint;
+         if(StopLoss>0) TheStopLoss=Ask-StopLoss*MyPoint;
+          if(!OrderSelect(result,SELECT_BY_TICKET))
+          Print("OrderModify error ",GetLastError());
+          if(!OrderModify(OrderTicket(),OrderOpenPrice(),NormalizeDouble(TheStopLoss,Digits),NormalizeDouble(TheTakeProfit,Digits),0,Green))
+            Print("OrderModify error ",GetLastError());  
+            */
+          }
+           else
+          {
+          Print("Send error ",GetLastError());
+          }
+          
+          }//same
+        if (TradeDirectionB[NewzNumber] == "opp")
+         {
+          //send sell order order
+          
+         TheStopLoss=0;
+         TheTakeProfit=0;
+         if(TakeProfit>0) TheTakeProfit=vbidB-TakeProfit*MyPoint;
+         if(StopLoss>0) TheStopLoss=vbidB+StopLoss*MyPoint;
+       result=OrderSend(TradePairB[NewzNumber],OP_SELL,Lots,vbidB,Slippage,TheStopLoss,TheTakeProfit,"NewzB"+Period(),MagicNumber,0,Red);  //result=OrderSend(Symbol(),OP_SELL,AdvancedMM(),Bid,Slippage,0,0,"EA Generator",MagicNumber,0,Red);
+        if(result>0)
+        {
+        /*
+         TheStopLoss=0;
+         TheTakeProfit=0;
+         if(TakeProfit>0) TheTakeProfit=Bid-TakeProfit*MyPoint;
+         if(StopLoss>0) TheStopLoss=Bid+StopLoss*MyPoint;
+          if(!OrderSelect(result,SELECT_BY_TICKET))
+          Print("OrderModify error ",GetLastError());
+         if(!OrderModify(OrderTicket(),OrderOpenPrice(),NormalizeDouble(TheStopLoss,Digits),NormalizeDouble(TheTakeProfit,Digits),0,Green))
+          Print("OrderModify error ",GetLastError());
+          */
+          }
+            else
+          {
+          Print("Send error ",GetLastError());
+          }
+          
+         }//opp
+         
+        // }//end of if no open orders
+         
+        }//end of if font is green
+
+
+    
+      if(NewsArr[4][NewzNumber] == " black")
+      {
+      //CheckNews=0;
+      Print(NewsArr[3][NewzNumber] + " is " + NewsArr[4][NewzNumber] + " EvalNews no change or minimal change!out of checknews = 1 ");
+         
+         Print("TradeDirectionA[NewzNumber]= " + TradeDirectionA[NewzNumber]);
+         Print("TradeDirectionB[NewzNumber]= " + TradeDirectionB[NewzNumber]);
+      }
+     
+     
+}
+ Sleep(60000); //sleep for 1 min
+ 
+ return(NewsArr[4][NewzNumber]);
+ 
+ }
+//+------------------------------------------------------------------+
+//////////////////////////////////////////////////////////////////////////////////
+// Download CBOE page source code in a text variable
+// And returns the result
+//////////////////////////////////////////////////////////////////////////////////
+string ReadCBOE()
+  {
+
+   string cookie=NULL,headers;
+   char post[],result[];     string TXT="";
+   int res;
+//--- to work with the server, you must add the URL "https://www.google.com/finance"  
+//--- the list of allowed URL (Main menu-> Tools-> Settings tab "Advisors"): 
+   string google_url="http://ec.forexprostools.com/?columns=exc_currency,exc_importance,exc_actual,exc_forecast,exc_previous&importance=1,2,3";  //string google_url="http://ec.forexprostools.com/?columns=exc_currency,exc_importance,exc_actual,exc_forecast,exc_previous&importance=1,2,3";
+   //string google_url="http://ec.forexprostools.com/?columns=exc_currency,exc_importance&importance=1,2,3&calType=week&timeZone=15&lang=1";
+//--- 
+   ResetLastError();
+//--- download html-pages
+   int timeout=5000; //--- timeout less than 1,000 (1 sec.) is insufficient at a low speed of the Internet
+   res=WebRequest("GET",google_url,cookie,NULL,timeout,post,0,result,headers);
+//--- error checking
+   if(res==-1)
+     {
+      Print("WebRequest error, err.code  =",GetLastError());
+      MessageBox("You must add the address ' "+google_url+"' in the list of allowed URL tab 'Advisors' "," Error ",MB_ICONINFORMATION);
+      //--- You must add the address ' "+ google url"' in the list of allowed URL tab 'Advisors' "," Error "
+     }
+   else
+     {
+      //--- successful download
+      //PrintFormat("File successfully downloaded, the file size in bytes  =%d.",ArraySize(result)); 
+      //--- save the data in the file
+      int filehandle=FileOpen("news-log.html",FILE_WRITE|FILE_BIN);
+      //--- проверка ошибки 
+      if(filehandle!=INVALID_HANDLE)
+        {
+         //---save the contents of the array result [] in file 
+         FileWriteArray(filehandle,result,0,ArraySize(result));
+         //--- close file 
+         FileClose(filehandle);
+
+         int filehandle2=FileOpen("news-log.html",FILE_READ|FILE_BIN);
+         TXT=FileReadString(filehandle2,ArraySize(result));
+         FileClose(filehandle2);
+        }else{
+         Print("Error in FileOpen. Error code =",GetLastError());
+        }
+     }
+
+   return(TXT);
+  }
+//+------------------------------------------------------------------+
+datetime TimeNewsFunck(int nomf)
+  {
+   string s=NewsArr[0][nomf];
+   string time=StringConcatenate(StringSubstr(s,0,4),".",StringSubstr(s,5,2),".",StringSubstr(s,8,2)," ",StringSubstr(s,11,2),":",StringSubstr(s,14,4));
+   return((datetime)(StringToTime(time) + offset*3600)); //at no multi it should be time of only  //return((datetime)(StringToTime(time) + offset*3600)); //5 mins before and 5 mins after
+  }
+//////////////////////////////////////////////////////////////////////////////////
+
+
+
+void SpeedUpdateNews()  //this may not work .. might need to jusy go witht eh main starting at the intened number not 0
+  {
+   Print("SpeedUpdateNews!");
+    //this removes the top and bottom of the website leaving only the xml data of the table
+   string TEXT="";  // string TEXT=ReadCBOE();
+   TEXT=ReadCBOE();
+   int sh = StringFind(TEXT,"pageStartAt>")+12;
+   int sh2= StringFind(TEXT,"</tbody>");
+   TEXT=StringSubstr(TEXT,sh,sh2-sh);
+   Print (TEXT); 
+    
+    
+   sh=0;
+   sh2=0;
+
+while(!IsStopped()) // <-- i think this is what loops it thru the txt file.. if i start at NewsEventnumber.. the data for the 1st news will be hewre not the correct one
+     {
+      //<td class="bold act redFont event-362335-actual" title="Worse Than Expected" id="eventActual_362335">54.2</td>
+      Print("NomNews= "+ NomNews);
+      
+     if(NomNews == NewsEventnumber)
+     {
+      sh = StringFind(TEXT,"bold act",sh)+8;
+      sh2= StringFind(TEXT,"Font",sh); //sh2= StringFind(TEXT,"Font",sh)-1;
+      if(sh<8 || sh2<0)break;
+      NewsArr[4][NewsEventnumber]=StringSubstr(TEXT,sh,sh2-sh); 
+      
+      
+      //<td class="bold act blackFont event-363383-actual" title="" id="eventActual_363383">-0.57B</td> 
+     // eventActual_  +20    check for "&"
+         //this gets thw nwes currency
+      sh = StringFind(TEXT,"eventActual_",sh)+20;
+      if(sh<1)break;
+      NewsArr[5][NewsEventnumber]=StringSubstr(TEXT,sh,1);
+      //if(StringFind(str1,NewsArr[5][NomNews])<0)continue;
+       break; //exit the loop
+      } //end of only grab the data we need
+     
+     
+      NomNews++;
+      
+      if(NomNews==300)break;
+     }
+      
+     
+  }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+///this is the noraml one for out of the news check and addign the lines to the chart..
+
+
+
+void UpdateNews()
+  {
+   //this removes the top and bottom of the website leaving only the xml data of the table
+   string TEXT="";  // string TEXT=ReadCBOE();
+   TEXT=ReadCBOE();
+   int sh = StringFind(TEXT,"pageStartAt>")+12;
+   int sh2= StringFind(TEXT,"</tbody>");
+   TEXT=StringSubstr(TEXT,sh,sh2-sh);
+  // Print("TEXT= " + TEXT);
+
+
+//<td class="bold act greenFont event-362330-actual" title="Better Than Expected" id="eventActual_362330">2.2%</td> 
+//2.2% IS THE ACTUAL NEWS RESULT!! greenFont OR title="Better Than Expected"  CAN BE USED TO SEE IF ITS GOOD OR BAD OR NUTRIAL RELEASE
+
+//<td class="bold act blackFont event-362327-actual" title="" id="eventActual_362327">54.0</td>
+//<td class="bold act blackFont event-362331-actual" title="" id="eventActual_362331">19.0%</td>
+
+//<td class="bold act redFont event-362335-actual" title="Worse Than Expected" id="eventActual_362335">54.2</td> 
+
+
+//<td class="bold act blackFont event-363383-actual" title="" id="eventActual_363383">-0.57B</td> 
+                                                              //eventActual_  +20    check for "&"
+
+//<td class="bold act blackFont event-363328-actual" title="" id="eventActual_363328">&nbsp;</td> 
+
+
+
+// Print("NomNews before the while loop = " + NomNews);
+
+   NomNews=0;  
+   sh=0;
+   while(!IsStopped()) // <-- i think this is what loops it thru the txt file.. if i start at NewsEventnumber.. the data for the 1st news will be hewre not the correct one
+     {
+     
+  
+     // Print("NomNews IN the while loop = " + NomNews);
+     //this gets teh date and time
+      sh = StringFind(TEXT,"event_timestamp",sh)+17;  //returns the 1st character of the search or "e" and adds 17 charcters which covers the seach txt plus the "
+      sh2= StringFind(TEXT,"onclick",sh)-2;
+      if(sh<17 || sh2<0)break; // this breaks the loop
+      NewsArr[0][NomNews]=StringSubstr(TEXT,sh,sh2-sh);
+      
+
+       //this gets thw nwes currency
+      sh = StringFind(TEXT,"flagCur",sh)+10;
+      sh2= sh+3;
+      if(sh<10 || sh2<3)break;
+      NewsArr[1][NomNews]=StringSubstr(TEXT,sh,sh2-sh);
+      if(StringFind(str1,NewsArr[1][NomNews])<0)continue; // i think this breaks the loop - if the cur can not be found
+      
+      /*
+                            \|/ +3
+      <td class="flagCur"> EUR</td>
+                /|\ + 10  /|\
+      */
+      
+      
+      //this gets the improtance
+      sh = StringFind(TEXT,"title",sh)+7;
+      sh2= StringFind(TEXT,"Volatility",sh)-1;
+      if(sh<7 || sh2<0)break;
+      NewsArr[2][NomNews]=StringSubstr(TEXT,sh,sh2-sh);
+      if(StringFind(NewsArr[2][NomNews],"High")>=0 && !Vhigh)continue;  //this checks if both the text file and what the vable has are both high else kill the loop
+      if(StringFind(NewsArr[2][NomNews],"Moderate")>=0 && !Vmedium)continue;
+      if(StringFind(NewsArr[2][NomNews],"Low")>=0 && !Vlow)continue;
+      
+      
+      /*
+                                 \|/
+      <td class="sentiment" title="High Volatility Expected">
+                           /|\ +7     /|\ -1
+                           
+      if(StringFind(NewsArr[2][NomNews],"High")>=0 && !Vhigh)continue;
+      if(StringFind(NewsArr[2][NomNews],"Moderate")>=0 && !Vmedium)continue;
+      if(StringFind(NewsArr[2][NomNews],"Low")>=0 && !Vlow)continue;
+      this filters out the actul since the acutals also have a "title"
+      
+      <td class="bold act blackFont event-360836-actual" title="" id="eventActual_360836">
+      thats the next search for "title" down - this title does not return a high,moderate, nor low  so they are skipped
+      
+      
+      */
+      
+      
+       
+      //this gets teh report name
+      sh=StringFind(TEXT,"left event",sh)+12;
+      int sh1=StringFind(TEXT,"Speaks",sh);
+      sh2=StringFind(TEXT,"<",sh);
+      if(sh<12 || sh2<0)break;
+      if(sh1<0 || sh1>sh2)NewsArr[3][NomNews]=StringSubstr(TEXT,sh,sh2-sh);
+      else NewsArr[3][NomNews]=StringSubstr(TEXT,sh,sh1-sh);
+      
+      /*
+      
+      <td class="left event">Italian General Election</td>
+
+ 
+                      +12  /|\                      /|\ 
+      
+      1st eaxmple with speach:
+      
+      <td class="left event">FOMC Member Quarles Speaks                        &nbsp;<span class="audioIconNew newSiteIconsSprite" title="Speech">
+                           /|\                  /|\ 
+     
+      2018.03.07 14:06:56.712	News_EA USDJPY,M15: NewsArr[3][ 35] = FOMC Member Quarles 
+        the word "Speaks" is not included
+     
+      */                               
+        
+        
+      /*
+      
+      //here i am going to extrat the actual data and verify there is a number to it
+      
+      bold act redFon
+      
+      bold act blackFont
+      
+      
+      sh = StringFind(TEXT,"bold act",sh)+8;
+      sh2= StringFind(TEXT,"Font",sh)-1;
+      if(sh<8 || sh2<0)break;
+      NewsArr[4][NomNews]=StringSubstr(TEXT,sh,sh2-sh);
+      
+      
+      //i am going to use this above.. when i can eval the data.. 1st lets verify itw works
+      if(StringFind(NewsArr[2][NomNews],"green")>=0 )
+      {
+      
+      }continue;
+      if(StringFind(NewsArr[2][NomNews],"red")>=0 )continue;
+      
+      //wait a tick.. the actual font defults to black whither or nto there is data in the acutal number sections..
+      //so y not just check for 2 condiotns - if its green or red -- BOOOOMB!!!  u react - else skip it anyway!
+
+      */
+      
+      //<td class="bold act redFont event-362335-actual" title="Worse Than Expected" id="eventActual_362335">54.2</td>
+      
+      sh = StringFind(TEXT,"bold act",sh)+8;
+      sh2= StringFind(TEXT,"Font",sh); //sh2= StringFind(TEXT,"Font",sh)-1;
+      if(sh<8 || sh2<0)break;
+      NewsArr[4][NomNews]=StringSubstr(TEXT,sh,sh2-sh);
+      
+      
+      //<td class="bold act blackFont event-363383-actual" title="" id="eventActual_363383">-0.57B</td> 
+     // eventActual_  +20    check for "&"
+         //this gets thw nwes currency
+      sh = StringFind(TEXT,"eventActual_",sh)+20;
+      if(sh<1)break;
+      NewsArr[5][NomNews]=StringSubstr(TEXT,sh,1);
+      //if(StringFind(str1,NewsArr[5][NomNews])<0)continue;
+     
+      
+    
+      NomNews++;
+      
+      if(NomNews==300)break;
+     }
+     
+    
+    
+     //<td class="bold act blackFont event-363280-actual" title="" id="eventActual_363280">52.3</td>
+     // 2 > 5
+     
+     //<td class="bold act greenFont event-362388-actual" title="Better Than Expected" id="eventActual_362388">59.5</td>
+     // 9 > 5
+     
+     //<td class="bold act blackFont event-363271-actual" title="" id="eventActual_363271">-0.589%</td>
+     //0 > -
+     
+     //<td class="bold act blackFont event-363261-actual" title="" id="eventActual_363261">2.8%</td>
+     //. > 2
+     
+     
+     //<td class="bold act blackFont event-360836-actual" title="" id="eventActual_360836">&nbsp;</td>
+     //n >&
+     
+
+
+
+     
+
+     
+  }
+//+------------------------------------------------------------------+
+int TotalOrdersCount()
+{
+  int result=0;
+  for(int i=0;i<OrdersTotal();i++)
+  {
+     if(!OrderSelect(i,SELECT_BY_POS ,MODE_TRADES))
+      Print("OrderModify error ",GetLastError());
+     if (OrderMagicNumber()==MagicNumber) result++;
+
+   }
+  return (result);
+}
