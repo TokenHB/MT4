@@ -1,0 +1,503 @@
+/*
+Notes: 
+
+11-27-17 7:30pm
+so I found that the main order get info that was on the original was not actually gathering info so I put the info
+in the TotalOrdersCount function.. that opened up the order.. however I found a bug.. I ntoiced that the 
+modeType avriable was changing.. which it should just be set once with what ever the main order type is.
+and I think it changed to what the last pending oder was after it entererd and then changed from a Sell
+fromt the first test order to a buy which was B1 & S1 = B  instead of B1 & S1 = S fromt he sell code part
+I am waiting for another order to be placed to test it.. 
+
+update: so i found a copy-paste error on the sell of both modes.. lets see.. the order entered as soon as I correceted the sell ont he buy mode.. need more
+         workign examples to provde its fixed...
+
+
+after the top is verifed correct this is next.
+note: just realized i need a way to check to see if a TP or an SL is hit and close out all the other pending orders if there are any..
+
+11-28-18 8:26am
+I belive i fixed the pending order issue.. now i need to have some sucessful tests of it while i wait for fxchoice..
+also need to look into the main EA (pr parent EA if u will ) of this to see y the TP is not 210 like its supposed to be!
+
+
+update:  so I found that the main closed out but the B NLF didnt close.. so I have to come up with a way to close all if one is closed
+         so i am thinking about usign the original history idea.. so if there is a new hisoty with the magic number.. then close all
+         all open and closed witht he magic number. thought about checkign history for the main but the NLF orders migth close before it
+         so checking history for a change in orders is the proper way to go.. tried checking the history.. the way its implented below
+         does not work.. it closes the pending orders each time.. fail! this is going to be interesting. I think i got the pending orders to
+         close but the open NLF buys or sells will be a problem.. how can the computer tell if an order hit TP? but wait..  if done correcltly,
+         which it think this is doing, the TP of one order would be the SLs of the others.. thus all the orders whould close at the same
+         time.. the issue might be with the ASK line. the spread might have to get calculated into the opens to make sure that the
+         orders all close out togther.. lets see what happends with the current buy.. it should work like the teacher said then the working
+         clean up of pending orders should be all I need.. 
+         
+update: found that the main would not clear .. so I added a check if there are no buys or sells then clear out the main veriable.. seams to work well.
+         now i need more test on this. ok I updated the code with the check rigth at the pending order count below.. needs more testing
+         but it seams to be workign well..
+
+*/
+
+extern int MagicNumber=10001;
+extern double Lots =0.01;
+extern double StopLoss=200;
+extern double TakeProfit=300;
+extern int TrailingStop=150;
+extern int Slippage=3;
+
+//Never lose Formula
+ int ModeType;
+ int buys=0,sells=0,PendingBuys=0, PendingSells=0;
+ int Mainorder =0;
+ double MainEntry= 0;
+ double MainLots = 0;
+ double MainSL = 0;
+ double MainTP = 0;
+ 
+double NlFSellLots = 0;
+double NLFSellEntry =0;
+double NLFSellTP =  0;
+double NLFSellSL = 0;
+double NLFBuyEntry = 0; 
+double NLFBuyTP =  0;
+double NLFBuySL = 0;
+double NlFBuyLots = 0;
+
+//int PreviousHistorycount=0;
+//int HistoryCount=0;
+
+
+int init()
+{
+  Comment( MagicNumber);
+  return(0);
+}
+ 
+//+------------------------------------------------------------------+
+//    expert start function
+//+------------------------------------------------------------------+
+int start()
+{
+  
+
+  
+    if(Volume[0]>1) return(0);  //if not the open of a mew bar - exit
+    
+  double MyPoint=Point;
+  if(Digits==3 || Digits==5) MyPoint=Point*10;
+  
+  //double TheStopLoss=0;
+ // double TheTakeProfit=0;
+  
+  
+
+  
+//  Here is the old entry check code
+
+TotalOrdersCount();
+
+/*   // this might have been causing an glitch... removed!!!
+  if( TotalOrdersCount()==0 )   // here it checks or an entered order - live order
+  {
+     int result=0;
+     
+     return(0);
+   } 
+  */      
+     
+     
+     
+ ///  here im going to try and write out the formula in words:
+ //   Wave 1
+ //   if there is an entry on the Buy Stop - then we enter a sell stop at -$70 from the original entry
+ //   the lot size is 1.4 and the TP is original entry - $70 - $210
+ //   the SL is the original/main order's TP
+ //   the original/main order gets modified to have a SL of the TP of this new Sell stop
+     
+// main buy entry  = by robot or manual   SL = TP of NLF sell stop  TP =  entry +210
+// LNF sell entry  = main buy entry - 70  SL = TP of main buy stop  TP = entry - 210      
+     
+ //  Wave 2
+ //  if sell stop is also hit - then open a duplicate main order with all the same info lots, SL , TP
+ //  Wave 3
+ //  if the new Buy stop is hit  - then open a dulicate of the sell stop with all the same info  lots, SL , TP
+ //  Wave 4 
+ //  if the new sell stop is hit = then open a dulicate of the main order withe the lot of 1.95 , SL, TP the same
+ 
+ 
+ /*  //moved back down
+  Comment ( " Buys = " + buys  +"  " + " Sells = " + sells + " Mainorder = " + Mainorder + "\n PendingBuys= " + PendingBuys + " PendingSells = " + PendingSells
+                  +  "\nModeType = " + ModeType );
+
+*/
+
+      Comment ( " Buys = " + buys  +"  " + " Sells = " + sells + " Mainorder = " + Mainorder + "\n PendingBuys= " + PendingBuys + " PendingSells = " + PendingSells
+                  +  "\nModeType = " + ModeType  );
+   
+   
+ if( PendingBuys==0 &&  PendingSells==0)
+ {   
+   Print ("No pending orders check!");
+   
+   
+if (ModeType == OP_BUY)
+{   
+
+ Print ("OP_BUY");
+ 
+   // so I think here i will calc the NLF orders both buy and sell when neede.. so right off the bat the sell info should calc.
+ 
+ //No loss Formula Sell
+   NlFSellLots = MainLots * 1.4;
+   NLFSellEntry = MainEntry - 70;
+   NLFSellTP =  NLFSellEntry - 210;
+   NLFSellSL = MainTP;
+   if(!OrderModify(Mainorder,OrderOpenPrice(),NLFSellTP,MainTP,0,Green))    // here I updated the main to have the SL of the TP of the NLFsell
+            Print("OrderModify error ",GetLastError());  
+   
+ //No loss Formula Buys
+ 
+   if ( sells == 2 ) {NlFBuyLots = MainLots * 1.95;}
+    else { NlFBuyLots = MainLots;}
+   NLFBuyEntry = MainEntry;
+   NLFBuyTP =  MainTP;
+   NLFBuySL = MainSL;
+   
+    
+     //buy
+    
+   if( (buys == 1 && sells == 1 )  ||  (buys == 2 && sells == 2 )     )
+    {  
+     
+    Print (" buys == 1 && sells == 1 or buys == 2 && sells == 2");
+    
+        if ( sells == 2 ) {NlFBuyLots = MainLots * 1.95;}
+         else { NlFBuyLots = MainLots;}
+    
+        if(!OrderSend(Symbol(),OP_BUYSTOP,NlFBuyLots,NLFBuyEntry,Slippage,NLFBuySL,NLFBuyTP,"B LNF",MagicNumber,0,Blue))
+             Print("OrderModify error ",GetLastError());
+       
+        return(0);
+   
+     }  //end of buys
+
+   
+   
+   
+     //sell
+
+     if( (buys == 1 && sells == 0 )  ||  (buys == 2 && sells == 1 )     )
+     {
+       Print (" buys == 1 && sells == 0 or buys == 2 && sells == 1");
+       
+        if(!OrderSend(Symbol(),OP_SELLSTOP,NlFSellLots,NLFSellEntry,Slippage,NLFSellSL,NLFSellTP,"S LNF",MagicNumber,0,Red))
+         Print("OrderModify error ",GetLastError());
+      
+      
+       if( buys == 1 && MainTP == 0)
+       {
+          if(!OrderModify(Mainorder,OrderOpenPrice(),MainSL,NLFSellTP,0,Green))    // here I updated the main to have the SL of the TP of the NLFsell
+            Print("OrderModify error ",GetLastError());  
+       }
+      
+        
+        return(0);
+     } //end of sells
+
+
+} //end of buy mode
+
+  
+  
+if (ModeType == OP_SELL)
+{   
+
+Print ("OP_SELL");
+   // so I think here i will calc the NLF orders both buy and sell when neede.. so right off the bat the sell info should calc.
+ 
+ //No loss Formula Buy
+   NlFBuyLots = MainLots * 1.4;
+   NLFBuyEntry = MainEntry + 70;
+   NLFBuyTP =  NLFBuyEntry + 210;
+   NLFBuySL = MainTP;
+   if(!OrderModify(Mainorder,OrderOpenPrice(),NLFBuyTP,MainTP,0,Green))    // here I updated the main to have the SL of the TP of the NLFBuy
+            Print("OrderModify error ",GetLastError());  
+   
+ //No loss Formula Sells
+ 
+   if ( buys == 2 ) {NlFSellLots = MainLots * 1.95;}
+    else { NlFSellLots = MainLots;}
+   NLFSellEntry = MainEntry;
+   NLFSellTP =  MainTP;
+   NLFSellSL = MainSL;
+   
+     
+     //buy
+    
+   if( (buys == 0 && sells == 1 )  ||  (buys == 1 && sells == 2 )     )
+   
+    {  
+     
+    
+        
+        if(!OrderSend(Symbol(),OP_BUYSTOP,NlFBuyLots,NLFBuyEntry,Slippage,NLFBuySL,NLFBuyTP,"B LNF",MagicNumber,0,Blue))
+             Print("OrderModify error ",GetLastError());
+       
+        return(0);
+   
+     }  //end of buys
+
+   
+   
+   
+     //sell
+
+     if( (buys == 1 && sells == 1 )  ||  (buys == 2 && sells == 2 )     )
+     {
+      if ( buys == 2 ) {NlFBuyLots = MainLots * 1.95;}
+         else { NlFBuyLots = MainLots;}
+    
+        if(!OrderSend(Symbol(),OP_SELLSTOP,NlFSellLots,NLFSellEntry,Slippage,NLFSellSL,NLFSellTP,"S LNF",MagicNumber,0,Red))
+         Print("OrderModify error ",GetLastError());
+      
+      
+       if( buys == 1 && MainTP == 0)
+       {
+          if(!OrderModify(Mainorder,OrderOpenPrice(),MainSL,NLFSellTP,0,Green))    // here I updated the main to have the SL of the TP of the NLFsell
+            Print("OrderModify error ",GetLastError()); 
+       }
+      
+      
+         
+        return(0);
+     } //end of sells
+ } //end of sell mode 
+} //end of no pending orders.
+
+/*  //this did nto work at all.. keept closeing the pending orders.
+
+CheckHistoryforClose();
+
+ if (HistoryCount > PreviousHistorycount)
+  {
+    for(int i=0;i<OrdersTotal();i++)
+   {
+     OrderSelect(i,SELECT_BY_POS,MODE_TRADES);
+     if(OrderSymbol()==Symbol() && OrderMagicNumber()==MagicNumber && ((OrderType()==OP_BUY)|| (OrderType()==OP_SELL) ))
+     {
+      OrderClose(OrderTicket(),OrderLots(),Ask,3,Red);
+     
+     } 
+     
+     if(OrderSymbol()==Symbol() && OrderMagicNumber()==MagicNumber && (  (OrderType()==OP_BUYSTOP) || (OrderType()==OP_SELLSTOP))  )
+     {
+       OrderDelete(OrderTicket());
+     }
+       
+    }
+    PreviousHistorycount = HistoryCount;
+  }
+*/
+
+}  //end of start
+
+int TotalOrdersCount()
+{
+  buys=0;sells=0;PendingBuys=0;PendingSells=0;  // need to zero them out each time here
+ 
+  for(int i=0;i<OrdersTotal();i++)
+  {
+     if(!OrderSelect(i,SELECT_BY_POS ,MODE_TRADES))
+      Print("OrderModify error ",GetLastError());
+     if (OrderMagicNumber()==MagicNumber)
+        {
+         if(OrderType()==OP_BUY) 
+          {
+          if (  Mainorder == 0 && buys== 0)  // if this is the 1st order then its the main  // might need to rethink this  <--------------------------------
+            { Mainorder=OrderTicket(); 
+              MainEntry= OrderOpenPrice();
+              MainLots = OrderLots();
+              MainSL = OrderStopLoss();
+              MainTP = OrderTakeProfit();
+              ModeType = OrderType();
+             }
+            buys++;  
+             
+          } //end adding buy order to open orders count
+         else if(OrderType()==OP_SELL)
+         { 
+          if( Mainorder == 0 && sells == 0)
+             { Mainorder=OrderTicket(); 
+               MainEntry= OrderOpenPrice();
+               MainLots = OrderLots();
+               MainSL = OrderStopLoss();
+               MainTP = OrderTakeProfit();
+               ModeType = OrderType();            
+              }  // if this is the 1st order then its the main
+         
+          sells++;
+          
+             
+        }  //end adding sell  order to open orders count
+      
+      /*
+        else
+         {
+           Mainorder = 0;
+           Print ("no buys or sells");
+         
+         }
+        
+       */
+       
+       
+        /*   /// WELL!!! i did this a ton lot simpler buy using the data we already have to check if there is no main but pending orders!
+        
+          // here i can set up a countign variable like buys to count the number of orders in history.. if it increased .. then kill all pending orders using above
+          
+          top ints sections:
+          int PreviousHistorycount;
+          int HistoryCount;
+          
+          
+          //here call the history counter fucntion bellow
+          
+          if (HistoryCount > PreviousHistorycount)
+           {
+             for(int i=0;i<OrdersTotal();i++)
+            {
+           OrderSelect(i,SELECT_BY_POS,MODE_TRADES);
+           if(OrderSymbol()==Symbol() && OrderMagicNumber()==MagicNumber && ((OrderType()==OP_BUYSTOP) || (OrderType()==OP_SELLSTOP) )){
+           OrderDelete(OrderTicket());
+            }   
+           }
+          
+          
+          //this is a spereate function to check if any of the order for this EA or its partents closed
+          
+          HistoryCount=0; // zero out before counting
+          
+          for(int i=OrdersHistoryTotal()-1,i>=0,i--)
+            {
+             OrderSelect(i, SELECT_BY_POS,MODE_HISTORY);
+             if(OrderSymbol()==Symbol() && OrderMagicNumber()==MagicNumber)  //only augments the count if its opened by this EA or its parent!
+             {
+                
+               HistoryCount++; 
+                
+             return(HistoryCount );
+              }
+             }
+        
+        */
+        
+        
+        
+        else if(OrderType()==OP_BUYSTOP) 
+          {
+           PendingBuys++;
+           
+           if(buys==0 && sells == 0)
+             {
+             
+             Mainorder = 0;
+              Print (" PendingBuys but no buys or sells");
+           
+             }
+            
+          }
+        
+        else if(OrderType()==OP_SELLSTOP) 
+           {
+            PendingSells++;
+            
+             if(buys==0 && sells == 0)
+             {
+             
+             Mainorder = 0;
+              Print (" PendingSells but no buys or sells");
+           
+             }
+              
+           }
+           
+      
+        
+         } //end of if magic number matches
+       else
+        {
+           
+            Mainorder = 0;  // no open order .. then clear out and wait for the next trade/
+            MainEntry= 0;
+            MainLots = 0;
+            MainSL = 0;
+            MainTP = 0;
+            NlFSellLots = 0;
+            NLFSellEntry =0;
+            NLFSellTP =  0;
+            NLFSellSL = 0;
+            NLFBuyEntry = 0; 
+            NLFBuyTP =  0;
+            NLFBuySL = 0;
+            NlFBuyLots = 0;
+         
+        }
+        
+   
+       //clean up           
+      if( Mainorder == 0 && ((PendingBuys > 0)  ||  (PendingSells > 0) ) )
+        { 
+     
+          Print("There are pending orders but no main!");
+          for(int j=0;j<OrdersTotal();j++)
+            {
+           OrderSelect(j,SELECT_BY_POS,MODE_TRADES);
+           if(OrderSymbol()==Symbol() && OrderMagicNumber()==MagicNumber && ((OrderType()==OP_BUYSTOP) || (OrderType()==OP_SELLSTOP) )){
+           OrderDelete(OrderTicket());
+            }   
+         }
+        }
+                       
+     } //end if the magic number matches
+     
+//--- return orders volume
+  return(buys );
+  return(sells);
+  return(PendingBuys);
+  return(PendingSells);
+  return(Mainorder); 
+  return(MainEntry);
+  return(MainLots);
+  return(MainSL);
+  return(MainTP);
+  return(ModeType);
+  return(NlFSellLots);
+  return(NLFSellEntry );
+  return(NLFSellTP);
+  return(NLFSellSL);
+  return(NLFBuyEntry);
+  return(NLFBuyTP);
+  return(NLFBuySL);
+  return(NlFBuyLots);
+}
+
+/*
+int CheckHistoryforClose()
+{
+
+          HistoryCount=0; // zero out before counting
+          
+          for(int i=OrdersHistoryTotal()-1;i>=0;i--)
+            {
+             OrderSelect(i, SELECT_BY_POS,MODE_HISTORY);
+             if(OrderSymbol()==Symbol() && OrderMagicNumber()==MagicNumber)  //only augments the count if its opened by this EA or its parent!
+             {
+                
+               HistoryCount++; 
+                
+             return(HistoryCount );
+              }
+             }
+
+}
+*/
