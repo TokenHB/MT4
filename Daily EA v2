@@ -1,0 +1,568 @@
+// each charts needs its own magic number.. the EA filters not by symbol but by magic number
+
+//not sure y its nto workign on fxchoice at all not even displayign the comment
+//i updated this to be one back meaning its not currently moving up or down.. the indicators are all done
+
+//this is v2 i changed how the EA calcs the hiest and lowest of the period.
+
+
+extern int MagicNumber=98231;
+extern double Lots =0.01;
+extern int MidnightLocalHr = 0;
+extern double StopLoss=30;
+extern double TakeProfit=40;
+extern double FirstTakeProfit=20;
+extern int Slippage=3;
+
+string Dirrection = "";
+string   Text="";
+
+int IndexHighest;
+int IndexLowest;
+double highestHigh;
+double LowestLow;
+
+int val_index_high, val_index_low;
+
+double yesterday_high, yesterday_low;
+
+
+double entry;
+bool HalfClosed=false;
+
+int OnInit()
+{
+
+
+
+}
+
+
+//+------------------------------------------------------------------+
+//    expert start function
+//+------------------------------------------------------------------+
+int start()
+{
+  
+  
+
+/*  
+    //double val;
+//--- calculating the highest value on the 20 consecutive bars in the range
+//--- from the 4th to the 23rd index inclusive on the current chart
+   int IndexHighest=iHighest(NULL,0,MODE_HIGH,20,4);
+   if(IndexHighest!=-1) highestHigh=High[val_index];
+   else PrintFormat("Error in call iHighest. Error code=%d",GetLastError());
+  
+  
+  
+  
+     double val;
+//--- calculating the lowest value on the 10 consequtive bars in the range
+//--- from the 10th to the 19th index inclusive on the current chart
+   int val_index=iLowest(NULL,0,MODE_LOW,10,10);
+   if(val_index!=-1) LowestLow=Low[val_index];
+   else PrintFormat("Error in iLowest. Error code=%d",GetLastError());
+*/  
+
+
+
+
+//if the time hr is 8 server time or 1 locl time - iLowest(NULL,0,MODE_LOW,24,1);
+  
+
+ 
+    
+  double MyPoint=Point;
+  if(Digits==3 || Digits==5) MyPoint=Point*10;
+  
+  double TheStopLoss=0;
+  //double TheTakeProfit=0;
+  double timeNow = TimeToStr(TimeCurrent(), TIME_DATE|TIME_SECONDS);
+  
+      string Vname = "12am" +timeNow;
+      
+     
+      
+      
+   for(int cnt=0;cnt<OrdersTotal();cnt++)
+     {
+       if(!OrderSelect(cnt, SELECT_BY_POS, MODE_TRADES))
+        Print("OrderModify error ",GetLastError());
+      if(OrderType()<=OP_SELL &&   
+         OrderSymbol()==Symbol() &&
+         OrderMagicNumber()==MagicNumber 
+         )  
+        {
+        if(Volume[0]>1) return(0);
+         if(OrderType()==OP_BUY)  
+           {
+           
+            //close buy
+             
+             
+             
+            if((Ask >= OrderOpenPrice()+FirstTakeProfit*MyPoint) && (HalfClosed==false))     // can add if I want to just exit || (CCIPrevious < (-1*CCIExitValue)
+             {
+             
+                   if(!OrderClose(OrderTicket(),OrderLots()/2,OrderClosePrice(),Slippage,Red))
+                       {Print("OrderModify error ",GetLastError());}
+                     else{  HalfClosed=true;
+                          Print("1st TP closed ");
+                         }
+              }
+             
+             if(Ask >= OrderOpenPrice()+TakeProfit*MyPoint )     // can add if I want to just exit || (CCIPrevious < (-1*CCIExitValue)
+                {
+                   if(!OrderClose(OrderTicket(),OrderLots(),OrderClosePrice(),Slippage,Red))
+                       {Print("OrderModify error ",GetLastError());}
+                       else{ 
+                   Print("2nd TP closed ");
+                   HalfClosed=false;
+                   BuyOpenReverse(Ask, MyPoint);
+                   }
+              }
+
+           }
+         else 
+           {
+           
+            if((Bid >= OrderOpenPrice()+FirstTakeProfit*MyPoint) && (HalfClosed==false) )     // can add if I want to just exit || (CCIPrevious < (-1*CCIExitValue)
+             {
+             HalfClosed=true;
+                   if(!OrderClose(OrderTicket(),OrderLots()/2,OrderClosePrice(),Slippage,Red))
+                       {Print("OrderModify error ",GetLastError());}
+                         else{  HalfClosed=true;
+                          Print("1st TP closed ");
+                         }
+              }
+             
+             if(Bid >= OrderOpenPrice()+TakeProfit*MyPoint )     // can add if I want to just exit || (CCIPrevious < (-1*CCIExitValue)
+                {
+                   if(!OrderClose(OrderTicket(),OrderLots(),OrderClosePrice(),Slippage,Red))
+                       {Print("OrderModify error ",GetLastError());}
+                        else{ 
+                   Print("2nd TP closed ");
+                   HalfClosed=false;
+                   SellOpenReverse(Bid, MyPoint);
+                   }
+                   
+                   
+              }
+
+           }//end of its its a sell order
+        }
+     }  
+      
+ 
+if(TimeMinute(TimeLocal())==MidnightLocalHr)  //if(TimeHour(TimeLocal())==MidnightLocalHr)
+{ 
+//Print ("the min hit!");
+  
+     ObjectCreate(Vname,OBJ_VLINE,0,Time[0],0);
+      ObjectSet(Vname, OBJPROP_STYLE, STYLE_SOLID);
+      ObjectSet(Vname,OBJPROP_BACK,True);
+      ObjectSet(Vname, OBJPROP_COLOR,clrDarkOrchid);
+   
+ if(Volume[0]>1) return(0);  //if not the open of a mew bar - exit
+ 
+  if( TotalOrdersCount()!=0 ) 
+  {
+  
+       //close all orders
+         for(int m=0;m<OrdersTotal();m++)
+            {
+           if ( (OrderSelect(m,SELECT_BY_POS,MODE_TRADES) == true) )
+           {
+           if(OrderSymbol()==Symbol() && OrderMagicNumber()==MagicNumber )
+            {
+            if(OrderType()<=OP_SELL)
+            {
+                  if(!OrderClose(OrderTicket(),OrderLots(),OrderClosePrice(),Slippage,Red))
+                   {
+                         Print("OrderModify error ",GetLastError());
+                         }
+                    
+                      
+              }   //end order is active
+            
+               else
+                 {
+                    OrderDelete(OrderTicket()); 
+                         
+                  }   
+            
+            
+             } //end of symbol and magic match
+            
+          } //end order select
+          
+          }//emd all orders
+  
+ 
+ 
+   }//end total order is  not equil to 0
+
+}
+
+
+
+if(TimeHour(TimeLocal())==MidnightLocalHr+1)
+{
+
+   timeNow = TimeToStr(TimeCurrent(), TIME_DATE|TIME_SECONDS);
+  
+        string name3 = "Up"+timeNow ;
+      string name4 = "Dn"+timeNow; 
+       Vname = "Doji" +timeNow;
+      
+       ObjectCreate(Vname,OBJ_VLINE,0,Time[1],0);
+      ObjectSet(Vname, OBJPROP_STYLE, STYLE_SOLID);
+      ObjectSet(Vname,OBJPROP_BACK,True);
+      ObjectSet(Vname, OBJPROP_COLOR,clrDarkOrchid);
+     
+      
+      
+    
+  if(Volume[0]>1) return(0);  //if not the open of a mew bar - exit  
+  
+  //lowest_price = Low[iLowest(NULL, 0, MODE_LOW, bars_count)];
+ // highest_price = High[iHighest(NULL, 0, MODE_HIGH, bars_count)];
+ 
+   yesterday_high=iHigh(NULL, PERIOD_H1,Highest(NULL, PERIOD_H1, MODE_HIGH, 23, 1)); 
+   yesterday_low=iLow(NULL, PERIOD_H1,Lowest(NULL, PERIOD_H1, MODE_LOW, 23, 1));  
+   
+   
+if(yesterday_high!=0) {
+   
+   
+   
+      Print(" Daily - highestHigh = " + yesterday_high ); 
+
+/*
+    val_index_high=iHighest(NULL,PERIOD_H1,MODE_LOW,24,1);
+   if(val_index_high!=-1) {
+   
+   highestHigh=High[val_index_high];
+   
+    
+   
+  
+            ObjectCreate(name3, OBJ_ARROW, 0, Time[val_index_high], Low[val_index_high]); //draw an up arrow
+      		ObjectSet(name3, OBJPROP_STYLE, STYLE_SOLID);
+     		   ObjectSet(name3, OBJPROP_SCALE, 16);
+      		ObjectSet(name3, OBJPROP_ARROWCODE, SYMBOL_ARROWUP);
+      		ObjectSet(name3, OBJPROP_COLOR,clrLime); 
+  
+   
+         ObjectCreate(name3,OBJ_VLINE,0,Time[val_index_high],0);
+      ObjectSet(name3, OBJPROP_STYLE, STYLE_SOLID);
+      ObjectSet(name3,OBJPROP_BACK,True);
+      ObjectSet(name3, OBJPROP_COLOR,Green);
+      
+      Print(" Daily - highestHigh = " + highestHigh ); 
+   */
+   
+   }
+   else PrintFormat("Error in call iHighest. Error code=%d",GetLastError());
+   
+   if(yesterday_low!=0) {
+    /*
+    val_index_low=iLowest(NULL,PERIOD_H1,MODE_LOW,24,1);
+   if(val_index_low!=-1){
+    LowestLow=Low[val_index_low];
+    
+   
+            ObjectCreate(name4,OBJ_ARROW, 0, Time[val_index_low], High[val_index_low]); //draw a dn arrow
+      		ObjectSet(name4, OBJPROP_STYLE, STYLE_SOLID);
+      		ObjectSet(name4, OBJPROP_SCALE, 16);
+      		ObjectSet(name4, OBJPROP_ARROWCODE, SYMBOL_ARROWDOWN);
+     		   ObjectSet(name4, OBJPROP_COLOR,clrCrimson);
+  
+    
+      ObjectCreate(name4,OBJ_VLINE,0,Time[val_index_low],0);
+      ObjectSet(name4, OBJPROP_STYLE, STYLE_SOLID);
+      ObjectSet(name4,OBJPROP_BACK,True);
+      ObjectSet(name4, OBJPROP_COLOR,Red);
+      
+        */
+      
+      Print(" Daily - LowestLow= " + yesterday_low); 
+    }
+   else PrintFormat("Error in iLowest. Error code=%d",GetLastError());   
+   
+  //Print(" Daily - highestHigh = " + yesterday_high + "  LowestLow= " + yesterday_low); 
+
+      		
+ 
+   
+  
+  
+ 
+  
+/*
+
+OP_BUYLIMIT Buy limit pending order  - below current price - falls and reverses - ask
+
+OP_BUYSTOP Buy stop pending order  - above current price  - keep going up - ask
+
+OP_SELLLIMIT Sell limit pending order - above current price - up then reverse - bid
+
+OP_SELLSTOP Sell stop pending order - below current price - keep falling -BID
+
+
+Buy Limit – buy provided the future "ASK" price is equal to the pre-defined value. The current price level is higher than the value of the placed order. Orders of this type are usually placed in anticipation of that the security price, having fallen to a certain level, will increase;
+Buy Stop – buy provided the future "ASK" price is equal to the pre-defined value. The current price level is lower than the value of the placed order. Orders of this type are usually placed in anticipation of that the security price, having reached a certain level, will keep on increasing;
+Sell Limit – sell provided the future "BID" price is equal to the pre-defined value. The current price level is lower than the value of the placed order. Orders of this type are usually placed in anticipation of that the security price, having increased to a certain level, will fall;
+Sell Stop – sell provided the future "BID" price is equal to the pre-defined value. The current price level is higher than the value of the placed order. Orders of this type are usually placed in anticipation of that the security price, having reached a certain level, will keep on falling.
+
+
+
+
+Daily Trading Range Straddle Rules
+• Use a 60 min. chart
+• Find the trading range of the previous day from 12:00 am or midnight to 12:00 am midnight EDT by draw
+ing a horizontal line over the previous days wick high or highest high and below the previous days wick
+low or lowest low of the day. (The daily trading range)
+• Straddling the daily trading range and placing your orders:
+BUY ORDERS FOR A LONG POSITION
+• Place a working BUY Order 13 pips above the daily trading range with 2 lots. (Bid/Ask Spread)
+• Place a Stop Order 30 pips from entry for 2 lots
+• Place a Limit Order for 1 lot 20 pips from your entry and a Limit Order for the other lot 40 pips from entry
+Your Stop/Reverse Orders for re-entry into the trading range
+• Only after you have been taken in long, place a new working Sell Order for 2 lots where your stop is for the
+long position.
+• Place a Stop order at the latest high.
+• Place a Limit Order for 1 lot 20 pips from your entry and a Limit Order for the other lot 40 pips from entry
+SELL ORDERS FOR A SHORT POSITION
+• Place a working SELL Order 10 pips below the daily trading range with 2 lots.
+• Place a Stop Order 30 pips from entry for 2 lots
+• Place a Limit Order for 1 lot 20 pips from your entry and a Limit Order for the other lot 40 pips from entry
+Your Stop/Reverse Orders for re-entry into the trading range
+• Only after you have been taken in Short, place a new working Buy Order for 2 lots where your stop is for the
+short position.
+• Place a Stop order at the latest low.
+• Place a Limit Order for 1 lot 20 pips from your entry and a Limit Order for the other lot 40 pips from entry
+If limits have not been filled by 12:00 am EDT, close all position and repeat the process at 12:00 am.
+ 
+ 
+ //buy
+ buy 13 pips above 2 lots              -> buystop
+ stop order 30 pips from entry         --> SL for the below order of entry - 30pips 
+ limit order 20 from entry 1 lot       --> sell limit - order close 1/2 and 20 pips
+ limit order 40 pips form entry 1 lot  --> sell limit - order close 2/2 at 40 pips
+ 
+ //buy reverse
+ <after buy closes>
+ 
+real sell order 2 at the close of the buy 2 nd limit order above (current price )
+stop  30                               --> SL for the above order of entry - 30pips 
+ limit order 20 from entry 1 lot       --> buy limit - order close 1/2 and 20 pips
+ limit order 40 pips form entry 1 lot  --> buy limit - order close 2/2 at 40 pips
+
+ 
+ 
+ //sell
+ 
+ sell 10 pips below 2 lots              -> sellstop
+ stop order 30 pips from entry         --> SL for the above order of entry - 30pips 
+ limit order 20 from entry 1 lot       --> buy limit - order close 1/2 and 20 pips
+ limit order 40 pips form entry 1 lot  --> buy limit - order close 2/2 at 40 pips
+ 
+ //buy reverse
+ <after buy closes>
+ 
+real buy order 2 at the close of the sell 2 nd limit order blow (current price )
+stop  30                               --> SL for the above order of entry - 30pips 
+ limit order 20 from entry 1 lot       --> sell limit - order close 1/2 and 20 pips
+ limit order 40 pips form entry 1 lot  --> sell limit - order close 2/2 at 40 pips
+
+
+//I think that takign the normal dirrection seams to hit almost all the time.. the rev seam to fail
+ // alot
+ 
+*/
+ 
+
+  
+  if( TotalOrdersCount()==0 ) 
+  {
+     int result=0;
+     
+
+
+ 
+  
+//buys
+
+        result=OrderSend(Symbol(),OP_BUYSTOP,Lots,NormalizeDouble((yesterday_high+13*MyPoint),Digits),Slippage,0,0,"DailyRange"+Period(),MagicNumber,0,Blue);  //result=OrderSend(Symbol(),OP_BUY,AdvancedMM(),Ask,Slippage,0,0,"EA Generator",MagicNumber,0,Blue);
+        if(result>0)
+        {
+         TheStopLoss=0;
+         //TheTakeProfit=0;
+       //  if(TakeProfit>0) TheTakeProfit=Ask+TakeProfit*MyPoint;
+         if(StopLoss>0) TheStopLoss=Ask-StopLoss*MyPoint;
+          if(!OrderSelect(result,SELECT_BY_TICKET))
+          Print("OrderModify error ",GetLastError());
+          if(!OrderModify(OrderTicket(),OrderOpenPrice(),NormalizeDouble(TheStopLoss,Digits),0,0,Green))
+            Print("OrderModify error ",GetLastError());  
+       //sleep(100000); //sleep for 1.6 mins
+       
+        entry=0.5;   //buy 1/2 of the entries good
+        }
+
+
+  
+ //sell
+ 
+      result=OrderSend(Symbol(),OP_SELLSTOP,Lots,NormalizeDouble((yesterday_low-10*MyPoint),Digits),Slippage,0,0,"DailyRange"+Period(),MagicNumber,0,Red);  //result=OrderSend(Symbol(),OP_SELL,AdvancedMM(),Bid,Slippage,0,0,"EA Generator",MagicNumber,0,Red);
+        if(result>0)
+        {
+      
+         TheStopLoss=0;
+        // TheTakeProfit=0;
+       //  if(TakeProfit>0) TheTakeProfit=Bid-TakeProfit*MyPoint;
+         if(StopLoss>0) TheStopLoss=Bid+StopLoss*MyPoint;
+          if(!OrderSelect(result,SELECT_BY_TICKET))
+          Print("OrderModify error ",GetLastError());
+         if(!OrderModify(OrderTicket(),OrderOpenPrice(),NormalizeDouble(TheStopLoss,Digits),0,0,Green))
+          Print("OrderModify error ",GetLastError());
+         //sleep(100000); //sleep for 1.6 mins
+     
+         entry=entry+0.5;  //sell 1/2 of the entries good
+        }
+ 
+   
+
+}  //end of no open orders check - this works much better then my old way!
+
+ 
+ 
+ 
+ //if(!OrderSend(Symbol(),OP_BUYSTOP,NlFBuyLots,NLFBuyEntry,Slippage,NLFBuySL,NLFBuyTP,"B LNF "+ Mainorder,MagicNumber,0,Blue))
+ //       {Print("Buyz Buy send error ",GetLastError());
+ 
+ 
+//if(!OrderSend(Symbol(),OP_SELLSTOP,NlFSellLots,NLFSellEntry,Slippage,NLFSellSL,NLFSellTP,"S LNF "+ Mainorder,MagicNumber,0,Red))
+//{Print("Sell send error ",GetLastError());
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+   //Comment(Text);
+   
+     
+     
+ 
+  
+ 
+  } //end of its 1am
+
+
+   return(0);
+}
+
+int TotalOrdersCount()
+{
+  int result=0;
+  for(int i=0;i<OrdersTotal();i++)
+  {
+     if(!OrderSelect(i,SELECT_BY_POS ,MODE_TRADES))
+      Print("OrderModify error ",GetLastError());
+     if (OrderMagicNumber()==MagicNumber) result++;
+
+   }
+  return (result);
+}
+
+
+int BuyOpenReverse(double StopPriceBuy,double MyPoint2)
+{
+
+int result2;
+ result2=OrderSend(Symbol(),OP_SELL,Lots,StopPriceBuy,Slippage,0,0,"DailyRangeRev"+Period(),MagicNumber,0,Blue);  //result=OrderSend(Symbol(),OP_BUY,AdvancedMM(),Ask,Slippage,0,0,"EA Generator",MagicNumber,0,Blue);
+        if(result2>0)
+        {
+       
+         int TheStopLoss=0;
+        // TheTakeProfit=0;
+       //  if(TakeProfit>0) TheTakeProfit=Bid-TakeProfit*MyPoint;
+         if(StopLoss>0) TheStopLoss=Bid+StopLoss*MyPoint2;
+          if(!OrderSelect(result2,SELECT_BY_TICKET))
+          Print("OrderModify error ",GetLastError());
+         if(!OrderModify(OrderTicket(),OrderOpenPrice(),NormalizeDouble(TheStopLoss,Digits),0,0,Green))
+          Print("OrderModify error ",GetLastError());
+         //sleep(100000); //sleep for 1.6 mins
+ 
+ 
+         Print("reverse sell opened");
+        }
+
+
+}
+
+
+int SellOpenReverse(double StopPriceSell,double MyPoint2)
+{
+
+int result3;
+result3=OrderSend(Symbol(),OP_BUYSTOP,Lots,StopPriceSell,Slippage,0,0,"DailyRange"+Period(),MagicNumber,0,Blue);  //result=OrderSend(Symbol(),OP_BUY,AdvancedMM(),Ask,Slippage,0,0,"EA Generator",MagicNumber,0,Blue);
+        if(result3>0)
+        {
+         int TheStopLoss=0;
+         //TheTakeProfit=0;
+       //  if(TakeProfit>0) TheTakeProfit=Ask+TakeProfit*MyPoint;
+         if(StopLoss>0) TheStopLoss=Ask-StopLoss*MyPoint2;
+          if(!OrderSelect(result3,SELECT_BY_TICKET))
+          Print("OrderModify error ",GetLastError());
+          if(!OrderModify(OrderTicket(),OrderOpenPrice(),NormalizeDouble(TheStopLoss,Digits),0,0,Green))
+            Print("OrderModify error ",GetLastError());  
+       //sleep(100000); //sleep for 1.6 mins
+         Print("reverse buy opened");
+         }
+}
+
+/*
+double AdvancedMM()
+{
+ int i;
+ double AdvancedMMLots = 0;
+ bool profit1=false;
+ int SystemHistoryOrders=0;
+  for( i=0;i<OrdersHistoryTotal();i++)
+  {  OrderSelect(i,SELECT_BY_POS ,MODE_HISTORY);
+     if (OrderMagicNumber()==MagicNumber) SystemHistoryOrders++;
+  }
+ bool profit2=false;
+ int LO=0;
+ if(SystemHistoryOrders<2) return(Lots);
+ for( i=OrdersHistoryTotal()-1;i>=0;i--)
+  {
+     if(OrderSelect(i,SELECT_BY_POS ,MODE_HISTORY))
+     
+     if (OrderMagicNumber()==MagicNumber) 
+     {
+        if(OrderProfit()>=0 && profit1) return(Lots);
+        if( LO==0)
+        {  if(OrderProfit()>=0) profit1=true;
+           if(OrderProfit()<0)  return(OrderLots());
+           LO=1;
+        }
+        if(OrderProfit()>=0 && profit2) return(AdvancedMMLots);
+        if(OrderProfit()>=0) profit2=true;
+        if(OrderProfit()<0 ) 
+        {   profit1=false;
+            profit2=false;
+            AdvancedMMLots+=OrderLots();
+        }
+     }
+  }
+ return(AdvancedMMLots);
+}
+
+*/
