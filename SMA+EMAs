@@ -1,0 +1,370 @@
+// each charts needs its own magic number.. the EA filters not by symbol but by magic number
+
+/*
+
+
+
+
+
+*/
+
+extern int MagicNumber=356;
+extern double Lots =0.01;
+extern int Exit_SMA =25;
+extern int Slippage=3;
+string   Text="";
+//note: the SMA seams to change per pair.. or instrument 
+
+ int buys=0,sells=0;
+ bool BuyStart= false;
+ bool SellStart=false;
+
+
+
+//+------------------------------------------------------------------+
+//    expert start function
+//+------------------------------------------------------------------+
+int start()
+{
+
+  
+   // if(Volume[0]>1) return(0);  //if not the open of a mew bar - exit
+    
+  double MyPoint=Point;
+  if(Digits==3 || Digits==5) MyPoint=Point*10;
+  
+  double TheStopLoss=0;
+  double TheTakeProfit=0;
+  double timeNow = TimeToStr(TimeCurrent(), TIME_DATE|TIME_SECONDS);
+
+      string Vname = "Mumbai" +timeNow;
+     
+      
+      
+if(TimeLocal()==5)
+{
+//Close all active and pending orders
+
+
+  if( TotalOrdersCount()!=0 ) 
+  {
+  
+       //close all orders
+         for(int m=0;m<OrdersTotal();m++)
+            {
+           if ( (OrderSelect(m,SELECT_BY_POS,MODE_TRADES) == true) )
+           {
+           if(OrderSymbol()==Symbol() && OrderMagicNumber()==MagicNumber )
+            {
+            if(OrderType()<=OP_SELL)
+            {
+                  if(!OrderClose(OrderTicket(),OrderLots(),OrderClosePrice(),Slippage,Red))
+                   {
+                         Print("OrderModify error ",GetLastError());
+                         }
+                    
+                      
+              }   //end order is active
+            
+
+            
+             } //end of symbol and magic match
+            
+          } //end order select
+          
+          }//emd all orders
+  
+ 
+ 
+   }//end total order is  not equil to 0
+  
+  
+
+
+
+}
+  
+   
+
+
+ 
+
+
+        
+ 
+ 
+//check for buy start     
+
+if(iMA(NULL,PERIOD_D1,50,0,MODE_SMA,PRICE_CLOSE,0)< Open[0])
+{         
+        
+
+//funky all MAs going up check
+
+if((iMA(NULL,0,50,0,MODE_SMA,PRICE_CLOSE,4)< iMA(NULL,0,50,0,MODE_SMA,PRICE_CLOSE,3)) && (iMA(NULL,0,50,0,MODE_SMA,PRICE_CLOSE,3)< iMA(NULL,0,50,0,MODE_SMA,PRICE_CLOSE,2)))
+ {     
+      
+ if((iMA(NULL,0,10,0,MODE_SMA,PRICE_CLOSE,4)< iMA(NULL,0,10,0,MODE_SMA,PRICE_CLOSE,3)) && (iMA(NULL,0,10,0,MODE_SMA,PRICE_CLOSE,3)< iMA(NULL,0,10,0,MODE_SMA,PRICE_CLOSE,2)))
+ { 
+     
+ if((iMA(NULL,0,15,0,MODE_SMA,PRICE_CLOSE,4)< iMA(NULL,0,15,0,MODE_SMA,PRICE_CLOSE,3)) && (iMA(NULL,0,15,0,MODE_SMA,PRICE_CLOSE,3)< iMA(NULL,0,15,0,MODE_SMA,PRICE_CLOSE,2)))
+ {     
+             
+      
+     if( (iMA(NULL,0,50,0,MODE_SMA,PRICE_CLOSE,1) < Close[1]   ) && (iMA(NULL,0,10,0,MODE_EMA,PRICE_CLOSE,1) > Close[1]) && (iMA(NULL,0,15,0,MODE_EMA,PRICE_CLOSE,1) > Close[1]))
+     {    
+       BuyStart = true;     
+       SellStart= false;
+       
+       
+      }
+  
+   }//end of 15 ema going up
+  }//end of 10ema going up    
+ }//end of 50sma going up
+}//end of daily check     
+ 
+ 
+ 
+ //check for sell  start 
+ 
+ if(iMA(NULL,PERIOD_D1,50,0,MODE_SMA,PRICE_CLOSE,0)> Open[0])
+ {  
+ //funky all MAs going down check
+
+if((iMA(NULL,0,50,0,MODE_SMA,PRICE_CLOSE,4)> iMA(NULL,0,50,0,MODE_SMA,PRICE_CLOSE,3)) && (iMA(NULL,0,50,0,MODE_SMA,PRICE_CLOSE,3)> iMA(NULL,0,50,0,MODE_SMA,PRICE_CLOSE,2)))
+ {     
+      
+ if((iMA(NULL,0,10,0,MODE_SMA,PRICE_CLOSE,4)> iMA(NULL,0,10,0,MODE_SMA,PRICE_CLOSE,3)) && (iMA(NULL,0,10,0,MODE_SMA,PRICE_CLOSE,3)> iMA(NULL,0,10,0,MODE_SMA,PRICE_CLOSE,2)))
+ { 
+     
+ if((iMA(NULL,0,15,0,MODE_SMA,PRICE_CLOSE,4)> iMA(NULL,0,15,0,MODE_SMA,PRICE_CLOSE,3)) && (iMA(NULL,0,15,0,MODE_SMA,PRICE_CLOSE,3)> iMA(NULL,0,15,0,MODE_SMA,PRICE_CLOSE,2)))
+ {     
+            
+       
+  if( (iMA(NULL,0,50,0,MODE_SMA,PRICE_CLOSE,1) > Close[1]   ) && (iMA(NULL,0,10,0,MODE_EMA,PRICE_CLOSE,1) < Close[1]) && (iMA(NULL,0,15,0,MODE_EMA,PRICE_CLOSE,1) < Close[1]))
+  {    
+       BuyStart = false;     
+       SellStart= true;
+       
+       
+  }     
+      
+    }//end of 15 ema going down
+  }//end of 10ema going down    
+ }//end of 50sma going down
+}//end of daily check           
+      
+      
+      
+      
+  
+ if(Volume[0]>1) return(0);  //if not the open of a mew bar - exit  
+ 
+ 
+    for(int cnt=0;cnt<OrdersTotal();cnt++)
+     {
+       if(!OrderSelect(cnt, SELECT_BY_POS, MODE_TRADES))
+        Print("OrderModify error ",GetLastError());
+      if(OrderType()<=OP_SELL &&   
+         OrderSymbol()==Symbol() &&
+         OrderMagicNumber()==MagicNumber)  
+        {
+       // Print ("found FXPower order!");
+         if(OrderType()==OP_BUY)  
+           {
+              //BUYS
+              
+          
+             if(  iMA(NULL,0,Exit_SMA,0,MODE_SMMA,PRICE_CLOSE,1) < Close[1] )  //if( Ask < iSAR(NULL,0,0.02,0.2,2))
+              {
+                       if(!OrderModify(OrderTicket(),OrderOpenPrice(),(iMA(NULL,0,Exit_SMA,0,MODE_SMMA,PRICE_CLOSE,1)),0,0,Green))
+                          {Print("OrderModify error ",GetLastError()); } 
+                          
+              }
+              
+               
+                     return(0);
+     
+            }//end of buys
+         else 
+           {
+           
+           //SELLS
+           
+        
+              if(  iMA(NULL,0,Exit_SMA,0,MODE_SMMA,PRICE_CLOSE,1) > Close[1] )  //if( Ask < iSAR(NULL,0,0.02,0.2,2))
+              {
+                       if(!OrderModify(OrderTicket(),OrderOpenPrice(),(iMA(NULL,0,Exit_SMA,0,MODE_SMMA,PRICE_CLOSE,1)),0,0,Green))
+                          {Print("OrderModify error ",GetLastError()); } 
+                          
+              }
+                  
+                     return(0);
+            
+           
+              }//end of sell
+           }//end of magic number and symbols match
+        }//end check all orders 
+        
+        
+  
+  
+  if( TotalOrdersCount()==0 ) 
+  {
+     int result=0;
+     
+       
+
+ 
+  
+  
+//buys 
+
+
+  if(BuyStart)
+     {
+      // Print("Buy: Main X Signal 2 and 1 bar ago "+Period());
+    
+    if( (iMA(NULL,0,50,0,MODE_SMA,PRICE_CLOSE,1) < Close[1]   ) && (iMA(NULL,0,10,0,MODE_EMA,PRICE_CLOSE,1) < Close[1]) && (iMA(NULL,0,15,0,MODE_EMA,PRICE_CLOSE,1) < Close[1]))
+       { 
+      // Print("Buy: Sar and EMA are below the low of 1 bar back! "+Period() );
+        result=OrderSend(Symbol(),OP_BUY,Lots,Ask,Slippage,0,0,"Freedom"+Period(),MagicNumber,0,Blue);  //result=OrderSend(Symbol(),OP_BUY,AdvancedMM(),Ask,Slippage,0,0,"EA Generator",MagicNumber,0,Blue);
+        if(result>0)
+        {
+        
+        // its stop loss would be the at least 5  pips below the lower horizontal line.
+         TheStopLoss=0;
+          TheStopLoss=(iSAR(NULL,0,0.02,0.2,1))-10*MyPoint;  
+          if(!OrderSelect(result,SELECT_BY_TICKET))
+          Print("OrderSelect error ",GetLastError());
+          if(!OrderModify(OrderTicket(),OrderOpenPrice(),NormalizeDouble(TheStopLoss,Digits),0,0,Green))
+            Print("OrderModify error ",GetLastError());  
+
+        } //end of enter buy order
+        
+        } //end of MA check
+  
+      }//end of buy start check
+
+
+ //sell
+   if(SellStart)
+     {
+      // Print("Buy: Main X Signal 2 and 1 bar ago "+Period());
+    
+    if( (iMA(NULL,0,50,0,MODE_SMA,PRICE_CLOSE,1) > Close[1]   ) && (iMA(NULL,0,10,0,MODE_EMA,PRICE_CLOSE,1) > Close[1]) && (iMA(NULL,0,15,0,MODE_EMA,PRICE_CLOSE,1) > Close[1]))
+       { 
+
+         // Print("Sell: Sar and EMA are above the high of 1 bar back! "+Period() );
+         result=OrderSend(Symbol(),OP_SELL,Lots,Bid,Slippage,0,0,"Freedom"+Period(),MagicNumber,0,Red);  //result=OrderSend(Symbol(),OP_SELL,AdvancedMM(),Bid,Slippage,0,0,"EA Generator",MagicNumber,0,Red);
+          if(result>0)
+        {
+         TheStopLoss=0;
+        TheStopLoss=(iSAR(NULL,0,0.02,0.2,1))+10*MyPoint;
+          if(!OrderSelect(result,SELECT_BY_TICKET))
+          Print("OrderSelect error ",GetLastError());
+         if(!OrderModify(OrderTicket(),OrderOpenPrice(),NormalizeDouble(TheStopLoss,Digits),0,0,Green))
+          Print("OrderModify error ",GetLastError());
+        } //end of enter sell order
+        
+        } //end of MA check
+  
+      }//end of sell start check
+   
+} //end of no open orders
+
+  
+
+
+   //Comment(Text);
+   
+
+   return(0);
+}
+
+// im prob going to simplyfy this into a checi for all order types and a check if there is a closed order in history with the same magic number
+
+
+int TotalOrdersCount()
+{
+  buys=0;sells=0;  // need to zero them out each time here
+                      
+  for(int i=0;i<OrdersTotal();i++)
+  {
+     if(!OrderSelect(i,SELECT_BY_POS ,MODE_TRADES))
+      Print("OrderModify error ",GetLastError());
+     if (OrderSymbol()==Symbol() &&OrderMagicNumber()==MagicNumber)
+        {
+         if(OrderType()==OP_BUY) 
+          {
+        
+            buys++;      
+          } //end adding buy order to open orders count
+          
+         if (OrderType()==OP_SELL)
+         { 
+
+          sells++;
+          
+             
+        }  //end adding sell  order to open orders count
+     
+
+     
+      
+        
+         } //end of if magic number matches
+      
+ 
+      
+  }  //end check each order
+      
+ 
+
+     
+//--- return orders volume
+  return(buys );
+  return(sells);
+}
+
+
+/*
+double AdvancedMM()
+{
+ int i;
+ double AdvancedMMLots = 0;
+ bool profit1=false;
+ int SystemHistoryOrders=0;
+  for( i=0;i<OrdersHistoryTotal();i++)
+  {  OrderSelect(i,SELECT_BY_POS ,MODE_HISTORY);
+     if (OrderMagicNumber()==MagicNumber) SystemHistoryOrders++;
+  }
+ bool profit2=false;
+ int LO=0;
+ if(SystemHistoryOrders<2) return(Lots);
+ for( i=OrdersHistoryTotal()-1;i>=0;i--)
+  {
+     if(OrderSelect(i,SELECT_BY_POS ,MODE_HISTORY))
+     
+     if (OrderMagicNumber()==MagicNumber) 
+     {
+        if(OrderProfit()>=0 && profit1) return(Lots);
+        if( LO==0)
+        {  if(OrderProfit()>=0) profit1=true;
+           if(OrderProfit()<0)  return(OrderLots());
+           LO=1;
+        }
+        if(OrderProfit()>=0 && profit2) return(AdvancedMMLots);
+        if(OrderProfit()>=0) profit2=true;
+        if(OrderProfit()<0 ) 
+        {   profit1=false;
+            profit2=false;
+            AdvancedMMLots+=OrderLots();
+        }
+     }
+  }
+ return(AdvancedMMLots);
+}
+
+*/
