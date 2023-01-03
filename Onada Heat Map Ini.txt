@@ -1,0 +1,1402 @@
+
+
+
+/*
+
+NewsFileName = Symbol()+Period()+".csv";
+
+ // updated file once per bar
+   if(lastupdate != Time[0]) 
+   {
+      fileHandle = FileOpen(NewsFileName,FILE_CSV|FILE_READ | FILE_WRITE);
+   
+      FileSeek(fileHandle, 0, SEEK_END); // Write at the end of the file.
+      string data = up[0]+"," + fractals+","+zigzag+","+count+","+Time[1];
+      FileWrite(fileHandle,data);
+      FileClose(fileHandle);
+      
+      lastupdate = Time[0];
+   }
+
+int handle=FileOpen("data1.csv",FILE_CSV|FILE_READ|FILE_WRITE,',');
+
+//Write to file//////////////////////////////////////////////////////////////////////////////////////////////
+FileWrite(handle, TimeToStr( TimeCurrent(), TIME_DATE | TIME_SECONDS ), Bid, Ask);
+
+
+//////////////////////////////////
+
+string NewsFileName = "somefile.csv";
+
+int vars[5];
+int count = 0;
+int file = FileOpen(NewsFileName,FILE_CSV|FILE_READ);
+
+while (!FileIsEnding(file) && count < 5)
+   {
+      vars[count] = FileReadNumber(file);
+      count++;
+   }
+   FileClose(file);
+   
+  ///////////////////////////////////////
+  
+  
+
+
+*/
+
+
+extern int MagicNumber=2131;
+string   Text="";
+//temp variable - need to get the real currecny form the file I need to create form the indi
+//extern string TempNewsCurrency = "USD"; 
+extern int     UpdateHour        = 1;
+datetime FileModifed;
+extern  string NewsFileName ="Todays_News_releases.csv";
+extern string filenameTrades="Trades.csv";
+double ColorLevel1,ColorLevel2,ColorLevel3,ColorLevel4;
+bool ReadFile,WriteTrades,CalcTrades;
+
+string evTitle[30],evCountry[30],evImpact[30];  /// doc loading is working.. just needs to have an open amount.. hmmm
+double evForecast[30],evPrevious[30];
+string Trades[30];  // here are the trades the take - the pair and direction which would match up with the evTitle numbers and the evTime arrry 1:1
+string TradePairA[30];
+string TradeDirectionA[30];
+string TradePairB[30];
+string TradeDirectionB[30];
+          
+int eMinutes[30];  //int eMinutes[10];
+datetime evTime[30];  //datetime evTime[10];
+
+//int Mas_i[3][4] = { 0, 1, 2, 3,   10, 11, 12, 13,   20, 21, 22, 23 };
+string Pairs[28] = { "AUDCAD", 
+"AUDCHF", 
+"AUDJPY", 
+"AUDNZD", 
+"AUDUSD", 
+"CADCHF", 
+"CADJPY", 
+"CHFJPY", 
+"EURAUD", 
+"EURCAD", 
+"EURCHF", 
+"EURGBP", 
+"EURJPY", 
+"EURNZD", 
+"EURUSD", 
+"GBPAUD", 
+"GBPCAD", 
+"GBPCHF", 
+"GBPJPY", 
+"GBPNZD", 
+"GBPUSD", 
+"NZDCAD", 
+"NZDCHF", 
+"NZDJPY", 
+"NZDUSD", 
+"USDCAD", 
+"USDCHF", 
+"USDJPY"	};
+
+double PairValuesCurent[28] = { 0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0
+
+};
+
+double PairValuesPrevious[28] = { 0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0
+
+};
+
+
+double PairChange[28] = { 0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0,
+0
+
+};
+
+
+double PairChangeABS[28];
+
+double IndividualCurrencyChange[56];
+
+string IndividualCurrency[8] = {"AUD","CAD","CHF","EUR","GBP","JPY","NZD","USD"};
+int IndividualCurrencyTemp[8];  //was double
+int IndividualCurrencyTempSorted[8];
+
+
+/*
+string Text1 = Pairs[0];    //1 = the current value  //2 would be the previous
+string Text2 = Pairs[1];
+string Text3 = Pairs[27];
+*/
+
+
+/*
+AUDCAD
+AUDCHF
+AUDJPY
+AUDNZD
+AUDUSD
+CADCHF
+CADJPY
+CHFJPY
+EURAUD
+EURCAD
+EURCHF
+EURGBP
+EURJPY
+EURNZD
+EURUSD
+GBPAUD
+GBPCAD
+GBPCHF
+GBPJPY
+GBPNZD
+GBPUSD
+NZDCAD
+NZDCHF
+NZDJPY
+NZDUSD
+USDCAD
+USDCHF
+USDJPY
+
+28 total combinations
+
+//int up,down;
+
+*/
+/*
+int OnInit()
+  {
+  for(int i=0; i<=27; i++)                // Cycle for tens
+     {
+      PairValuesCurent[i] = iClose(Pairs[i],PERIOD_D1,1);  //this works for the pervious candle
+      PairValuesPrevious[i] = iClose(Pairs[i],PERIOD_D1,24);
+      
+     }
+//---
+   return(INIT_SUCCEEDED);
+  }
+ */
+ 
+ int OnInit()
+  {
+  
+  FileModifed=(datetime)FileGetInteger(NewsFileName,FILE_MODIFY_DATE,false);
+Print("FileModifed = " + FileModifed + " < " + (TimeLocal()-(UpdateHour*900)) );
+
+//FileModifed = 1519342662 < 1519370263
+
+
+ EventSetTimer(UpdateHour*120);
+      Print("FileModifed = " + FileModifed + " < " + (TimeLocal()-(UpdateHour*3600)) );
+
+/*
+ if(FileModifed<TimeLocal()-(UpdateHour*120))   //3600
+        {
+         Print(NewsFileName+": file is out of date");
+         
+         ReadFile=true;
+        }
+      //--- set timer to update old File file every x hours  
+      else {
+      EventSetTimer(UpdateHour*120);
+      Print("FileModifed = " + FileModifed + " < " + (TimeLocal()-(UpdateHour*120)) );
+        }
+  */
+  
+  
+  }
+   
+//+------------------------------------------------------------------+
+//    expert start function
+//+------------------------------------------------------------------+
+int start()
+{
+  
+   
+   // if(Volume[0]>1) return(0);  //if not the open of a mew bar - exit
+     
+     
+     //iClose("USDCHF",PERIOD_D1,0) // have to check what it gives
+     
+     
+     
+//this garthers the data     
+  for(int i=0; i<=27; i++)                // Cycle for tens  //corrected
+     {
+      PairValuesCurent[i] =  NormalizeDouble(iClose(Pairs[i],PERIOD_D1,1), 5);  //this works for the pervious candle
+      PairValuesPrevious[i] =  NormalizeDouble(iClose(Pairs[i],PERIOD_D1,21),5);  //was 24
+      
+      if(PairValuesPrevious[i] != 0)  
+      {
+      PairChange[i] = NormalizeDouble(((PairValuesCurent[i] - PairValuesPrevious[i])/PairValuesPrevious[i]) *100 , 2);
+      // heat  map formula: ( (current - previous)/ previous) *100
+      PairChangeABS[i] = MathAbs(PairChange[i]);
+      
+      // here it sets up the individual currency's with the values
+      //if (i ==0) {IndividualCurrencyChange[0] =PairChange[i]; IndividualCurrencyChange[1] = IndividualCurrencyChange[i] * -1;}
+     // else if(i ==1){IndividualCurrencyChange[2] =PairChange[i]; IndividualCurrencyChange[3] = IndividualCurrencyChange[i] * -1;}
+     //  else{
+      
+      IndividualCurrencyChange[(i*2)] = PairChange[i];                            //here the iindivial currency gets a change percent vaule
+      IndividualCurrencyChange[(i*2)+1] = IndividualCurrencyChange[(i*2)] * -1;
+   // Print(" i = " + i);
+    //  Print("IndividualCurrencyChange[(i*2)] = " +  IndividualCurrencyChange[(i*2)]);
+   // Print("IndividualCurrencyChange[(i*2)+1] = " +  IndividualCurrencyChange[(i*2)+1]);
+    
+   // int TempCalcCheck = (i*2)+1;
+   // int TempCalcCheck2 = (i*2)+2;
+    
+  //  Print( TempCalcCheck  + " " + TempCalcCheck2);
+      //}
+      
+      
+      }
+      
+      
+      
+    if ((PairChange[i] >100 ) || (PairChange[i] <-100)){ PairChange[i]= (PairChange[i]/100);}
+      
+    // Print (Pairs[i] + " " + PairValuesCurent[i] + " " + PairValuesPrevious[i]+ " " + PairChange[i] + "%");
+     }
+ 
+//this needs to subtract them
+
+    int    maxValueIdx=ArrayMaximum(PairChangeABS,WHOLE_ARRAY,0);
+ //  Print( Pairs[maxValueIdx] +  " Max value = " + PairChangeABS[maxValueIdx]);
+ 
+ 
+ 
+ 
+ double minimalPercentChangePerColor =  PairChangeABS[maxValueIdx] / 5;
+ 
+//Print("minimalPercentChangePerColor= " + minimalPercentChangePerColor);
+ //Print("PairChangeABS[maxValueIdx]=" + PairChangeABS[maxValueIdx]);
+ 
+ // here  assign a value to each minimal change to get the streght
+
+ColorLevel1 = minimalPercentChangePerColor;
+ColorLevel2 = minimalPercentChangePerColor*2;
+ColorLevel3 = minimalPercentChangePerColor*3; 
+ColorLevel4 = minimalPercentChangePerColor*4;
+
+
+/*
+Print("ColorLevel1="+ColorLevel1);
+Print("ColorLevel2="+ColorLevel2);
+Print("ColorLevel3="+ColorLevel3);
+Print("ColorLevel4="+ColorLevel4);
+*/
+
+
+
+ 
+ for(int j=0; j<=56; j++)                // Cycle for tens    //fixed!
+     {
+      
+      if( (IndividualCurrencyChange[j] <= ColorLevel1 )&& (IndividualCurrencyChange[j] >=  ColorLevel1*-1))
+      {
+   //  Print("IndividualCurrencyChange["+j+"] before = " + IndividualCurrencyChange[j]);
+       IndividualCurrencyChange[j] = 0;
+   //    Print("IndividualCurrencyChange["+j+"] after hot colorlevel1 = " + IndividualCurrencyChange[j]);
+      }
+ 
+ //hot section or the positive side // not working!!!
+ 
+       if( (IndividualCurrencyChange[j] <= ColorLevel2 )&& (IndividualCurrencyChange[j] >  ColorLevel1))
+      {
+   //   Print("IndividualCurrencyChange["+j+"] before = " + IndividualCurrencyChange[j]);
+       IndividualCurrencyChange[j] = 1;
+    //     Print("IndividualCurrencyChange["+j+"] after hot colorlevel2 = " + IndividualCurrencyChange[j]);
+      }
+ 
+        if( (IndividualCurrencyChange[j] <= ColorLevel3 )&& (IndividualCurrencyChange[j] >  ColorLevel2))
+      {
+  //    Print("IndividualCurrencyChange["+j+"] before = " + IndividualCurrencyChange[j]);
+       IndividualCurrencyChange[j] = 2;
+  //       Print("IndividualCurrencyChange["+j+"] after hot colorlevel3 = " + IndividualCurrencyChange[j]);
+      }
+ 
+ 
+       if( (IndividualCurrencyChange[j] <= ColorLevel4 )&& (IndividualCurrencyChange[j] >  ColorLevel3))
+      {
+    //  Print("IndividualCurrencyChange["+j+"] before = " + IndividualCurrencyChange[j]);
+       IndividualCurrencyChange[j] = 3;
+    //     Print("IndividualCurrencyChange["+j+"] after hot colorlevel4 = " + IndividualCurrencyChange[j]);
+      }
+      
+      if( IndividualCurrencyChange[j] >  ColorLevel4)
+      {
+   //   Print("IndividualCurrencyChange["+j+"] before = " + IndividualCurrencyChange[j]);
+       IndividualCurrencyChange[j] = 4;
+  //      Print("IndividualCurrencyChange["+j+"] grater hot colorlevel4 = " + IndividualCurrencyChange[j]);
+      }
+ 
+ //cold section or the negative side
+  
+       if( (IndividualCurrencyChange[j] >= ColorLevel2* -1 )&& (IndividualCurrencyChange[j] <  ColorLevel1* -1))
+      {
+  //    Print("IndividualCurrencyChange["+j+"] before = " + IndividualCurrencyChange[j]);
+       IndividualCurrencyChange[j] = -1;
+  //     Print("IndividualCurrencyChange["+j+"] after cold colorleve2 = " + IndividualCurrencyChange[j]);
+      }
+ 
+        if( (IndividualCurrencyChange[j] >= ColorLevel3* -1 )&& (IndividualCurrencyChange[j] <  ColorLevel2* -1))
+      {
+   //   Print("IndividualCurrencyChange["+j+"] before = " + IndividualCurrencyChange[j]);
+       IndividualCurrencyChange[j] = -2;
+   //    Print("IndividualCurrencyChange["+j+"] after cold colorleve3 = " + IndividualCurrencyChange[j]);
+      }
+ 
+ 
+       if( (IndividualCurrencyChange[j] >= ColorLevel4* -1 )&& (IndividualCurrencyChange[j] <  ColorLevel3* -1))
+      {
+   //   Print("IndividualCurrencyChange["+j+"] before = " + IndividualCurrencyChange[j]);
+       IndividualCurrencyChange[j] = -3;
+   //    Print("IndividualCurrencyChange["+j+"] after cold colorleve4 = " + IndividualCurrencyChange[j]);
+      }
+      
+      if( IndividualCurrencyChange[j] < ( ColorLevel4 * -1))
+      {
+    //  Print("IndividualCurrencyChange["+j+"] before = " + IndividualCurrencyChange[j]);
+       IndividualCurrencyChange[j] = -4;
+      // Print("IndividualCurrencyChange["+j+"] less cold colorleve4 = " + IndividualCurrencyChange[j]);
+      }
+ 
+
+ 
+    } //end of for loop to assign a heat rating to the indivudial currencies
+ 
+ 
+ // here I have to get the values of each currecny per thier index and add them up
+ //https://docs.google.com/spreadsheets/d/1Jp2_0HGzdX8PQu8CnGaT6Ergoo5A5uNCGkfBY7KkCE4/edit#gid=2082978424
+ 
+//  IndividualCurrency[8];
+// IndividualCurrencyTemp[8];
+// IndividualCurrencyChange[
+
+IndividualCurrencyTemp[0] = IndividualCurrencyChange[0] + IndividualCurrencyChange[2] + IndividualCurrencyChange[4] 
+                            + IndividualCurrencyChange[6] + IndividualCurrencyChange[8] + IndividualCurrencyChange[17]
+                            + IndividualCurrencyChange[31];
+                            
+//Print("IndividualCurrencyTemp[0] = " +  IndividualCurrencyChange[0] +" " + IndividualCurrencyChange[2] +" " +  IndividualCurrencyChange[4]+" " +  IndividualCurrencyChange[6] +" " +  IndividualCurrencyChange[8] +" " +  IndividualCurrencyChange[17]+" " +  IndividualCurrencyChange[31]);                            
+                            
+                            
+IndividualCurrencyTemp[1] = IndividualCurrencyChange[1] + IndividualCurrencyChange[10] + IndividualCurrencyChange[12] + IndividualCurrencyChange[19] + IndividualCurrencyChange[33] + IndividualCurrencyChange[43] + IndividualCurrencyChange[51];
+//Print("IndividualCurrencyTemp[1] = " +  IndividualCurrencyChange[1] +" " + IndividualCurrencyChange[10] +" " + IndividualCurrencyChange[12] +" " + IndividualCurrencyChange[19] +" " + IndividualCurrencyChange[33] +" " + IndividualCurrencyChange[43] +" " + IndividualCurrencyChange[51]);
+
+IndividualCurrencyTemp[2] = IndividualCurrencyChange[3] + IndividualCurrencyChange[11] + IndividualCurrencyChange[14] + IndividualCurrencyChange[21] + IndividualCurrencyChange[35] + IndividualCurrencyChange[45] + IndividualCurrencyChange[53];
+//Print("IndividualCurrencyTemp[2] = " + IndividualCurrencyChange[3]  +" " + IndividualCurrencyChange[11]  +" " + IndividualCurrencyChange[14]  +" " + IndividualCurrencyChange[21]  +" " + IndividualCurrencyChange[35]  +" " + IndividualCurrencyChange[45]  +" " + IndividualCurrencyChange[53]);
+
+IndividualCurrencyTemp[3] = IndividualCurrencyChange[16] + IndividualCurrencyChange[18] + IndividualCurrencyChange[20] + IndividualCurrencyChange[22] + IndividualCurrencyChange[24] + IndividualCurrencyChange[26] + IndividualCurrencyChange[28];
+//Print("IndividualCurrencyTemp[3] = " + IndividualCurrencyChange[16] +" " + IndividualCurrencyChange[18] +" " + IndividualCurrencyChange[20] +" " + IndividualCurrencyChange[22] +" " + IndividualCurrencyChange[24] +" " + IndividualCurrencyChange[26] +" " +IndividualCurrencyChange[28]);
+
+IndividualCurrencyTemp[4] = IndividualCurrencyChange[23] + IndividualCurrencyChange[30] + IndividualCurrencyChange[32] + IndividualCurrencyChange[34] + IndividualCurrencyChange[36] + IndividualCurrencyChange[38] + IndividualCurrencyChange[40];
+//Print("IndividualCurrencyTemp[4] = " + IndividualCurrencyChange[23] +" " + IndividualCurrencyChange[30] +" " + IndividualCurrencyChange[32] +" " + IndividualCurrencyChange[34] +" " + IndividualCurrencyChange[36] +" " + IndividualCurrencyChange[38] +" " + IndividualCurrencyChange[40]);
+
+IndividualCurrencyTemp[5] = IndividualCurrencyChange[5] + IndividualCurrencyChange[13] + IndividualCurrencyChange[15] + IndividualCurrencyChange[25] + IndividualCurrencyChange[37] + IndividualCurrencyChange[47] + IndividualCurrencyChange[55];
+//Print("IndividualCurrencyTemp[5] = " + IndividualCurrencyChange[5] +" " + IndividualCurrencyChange[13] +" " + IndividualCurrencyChange[15] +" " + IndividualCurrencyChange[25] +" " + IndividualCurrencyChange[37] +" " + IndividualCurrencyChange[47] +" " + IndividualCurrencyChange[55]);
+
+IndividualCurrencyTemp[6] = IndividualCurrencyChange[7] + IndividualCurrencyChange[27] + IndividualCurrencyChange[39] + IndividualCurrencyChange[42] + IndividualCurrencyChange[44] + IndividualCurrencyChange[46] + IndividualCurrencyChange[48];
+//Print("IndividualCurrencyTemp[6] = " +  IndividualCurrencyChange[7] +" " +  IndividualCurrencyChange[27] +" " +  IndividualCurrencyChange[39] +" " +  IndividualCurrencyChange[42] +" " +  IndividualCurrencyChange[44] +" " +  IndividualCurrencyChange[46] +" " +  IndividualCurrencyChange[48]);
+
+IndividualCurrencyTemp[7] = IndividualCurrencyChange[9] + IndividualCurrencyChange[29] + IndividualCurrencyChange[41] + IndividualCurrencyChange[49] + IndividualCurrencyChange[50] + IndividualCurrencyChange[52] + IndividualCurrencyChange[54];
+//Print("IndividualCurrencyTemp[7] = " + IndividualCurrencyChange[9]  +" " +  IndividualCurrencyChange[29]  +" " +  IndividualCurrencyChange[41]  +" " +  IndividualCurrencyChange[49]  +" " +  IndividualCurrencyChange[50]  +" " +  IndividualCurrencyChange[52]  +" " +  IndividualCurrencyChange[54]);
+
+
+//Print( "AUD "+ IndividualCurrencyTemp[0] + "/ CAD " + IndividualCurrencyTemp[1] + " / CHF " + IndividualCurrencyTemp[2]+ " / EUR " + IndividualCurrencyTemp[3]+ " /GBP " + IndividualCurrencyTemp[4]+ " / JPY " + IndividualCurrencyTemp[5]+ " / NZD " + IndividualCurrencyTemp[6]+ " / USD " + IndividualCurrencyTemp[7]);
+ 
+ 
+                          
+// find which is the strongest currecny
+  int    StrongestIdx=ArrayMaximum(IndividualCurrencyTemp,WHOLE_ARRAY,0); // here we check the results of the temp and get teh max and mix ones
+  
+  int    WeakestIdx=ArrayMinimum(IndividualCurrencyTemp,WHOLE_ARRAY,0); // we can use this later to see if vaule is furthest form the new release curancy =  abs(news curency [indx] - StrongestIdx) > news curency [indx] - WeakestIdx :: then pair the news  oen with the result
+  
+string   Text31 = "Strongest Currency = " +  IndividualCurrency[StrongestIdx] + " at " + IndividualCurrencyTemp[StrongestIdx];
+string   Text32 = "Weakest Currency = " +  IndividualCurrency[WeakestIdx] + " at " + IndividualCurrencyTemp[WeakestIdx];  
+  
+  
+ //next eval currecny
+ 
+ //temp variable - need to get the real currecny form the file I need to create form the indi
+ 
+//TradePair
+
+// abs(news curency [indx] - StrongestIdx) > news curency [indx] - WeakestIdx :: then pair the news  oen with the result
+
+//TempNewsCurrency
+
+//dayshift=ArrayBsearch(daytimes,Time[shift],WHOLE_ARRAY,0,MODE_DESCEND);
+
+
+
+//Print("ReadFile = "+ ReadFile);
+if(ReadFile)
+{
+
+
+ Print("ReadFile is true");
+  ReadFile=false;
+  
+ 
+  int h = FileOpen(NewsFileName, FILE_CSV|FILE_READ,',');
+  if(h!=INVALID_HANDLE)
+  {
+      if (h==0) {
+         Comment("File "+NewsFileName+" not found.");
+         return(0);
+      }  
+
+
+      Print("H = vaild handel");
+      //for (int c=0; !FileIsEnding(h) && c<9999; c++)  {
+         
+        // if (FileIsEnding(h))  break;
+         //int c=0;
+         
+         evTitle[0] ="me manually setting 0 before file loop";
+  Print(evTitle[0]);
+         
+        for (int c=0; !FileIsEnding(h) && c<9999; c++)  //   while(FileIsEnding(h)==false) // While the file pointer..
+          { // ..is not at the end of the file 
+           Print("C= " + c);
+        // dt[c]= FileReaddatetime(h);   // Extracting and storing Date & Time
+       //  val1[c]=FileReadString(h);    // Extracting and storing Column 2 of CSV
+       //  val2[c]=FileReadNumber(h);    // Extracting and storing Column 3 of CSV
+         
+        //Title,Country,Impact,Forecast,Previous,Time
+        if (FileIsEnding(h))  break;
+         
+         evTitle[c]= FileReadString(h);                            //Crude Oil Inventories
+                
+         evCountry[c]= FileReadString(h);                           //USD
+         
+         evImpact[c]= FileReadString(h);                           //High
+                                                             //  -- im guessing its actual
+        evForecast[c]= FileReadNumber(h);                         //2.8M
+         
+         evPrevious[c]= FileReadNumber(h);                         //1.9M
+      
+          evTime[c]=FileReadDatetime(h);                          //2018.02.14  //3:30pm
+        
+        // Print("FileReaddatetime(h)= " + FileReaddatetime(h));
+         
+         /*
+         
+         This works.. y is it not setting the arrys
+         
+                 //Title,Country,Impact,Forecast,Previous,Time
+        if (FileIsEnding(h))  break;
+         
+         Print ("evTitle[c]= " +FileReadString(h));                            //Crude Oil Inventories
+                
+         Print ("evCountry[c]= "+FileReadString(h));                           //USD
+         
+         Print ("evImpact[c]= "+FileReadString(h));                           //High
+                                                             //  -- im guessing its actual
+         Print ("evForecast[c]= "+FileReadNumber(h));                         //2.8M
+         
+         Print ("evPrevious[c]= "+FileReadNumber(h));                         //1.9M
+      
+        Print ("evTime[c]= "+FileReaddatetime(h));                          //2018.02.14  //3:30pm
+        
+        // Print("FileReaddatetime(h)= " + FileReaddatetime(h));
+        
+        
+         
+         
+          C= 2								
+          evTitle[c]= Prelim GDP q/q					"Prelim GDP q/q	,	EUR	,	Medium	,	0.60%	,	0.80%	,	2018.02.14 7:00 AM"			
+          evCountry[c]= EUR								
+          evImpact[c]= Medium								
+          evForecast[c]= 0.6								
+          evPrevious[c]= 0.8								
+          evTime[c]= 1518591600								
+         
+         
+         */
+         
+         
+         
+         
+         
+         
+         
+         /*
+         
+          
+         evTitle[c]=FileReadString(h);                            //Crude Oil Inventories
+         Print (evTitle[c]);         
+         evCountry[c]=FileReadString(h);                           //USD
+         Print (evCountry[c]);
+         evImpact[c]=FileReadString(h);                           //High
+         Print (evImpact[c]);                                                        //  -- im guessing its actual
+         evForecast[c]=FileReadNumber(h);                         //2.8M
+         Print (evForecast[c]);
+         evPrevious[c]=FileReadNumber(h);                         //1.9M
+         Print (evPrevious[c]);
+         evTime[c]= FileReaddatetime(h);                          //2018.02.14  //3:30pm
+         Print (evTime[c]);
+         Print("FileReaddatetime(h)= " + FileReaddatetime(h));
+         
+         
+         
+         
+         */
+        // c++;
+         
+       /*  
+         symbol = FileReadString(Handle); // symbol
+         timeframe = FileReadString(Handle); // timeframe
+         level = FileReadNumber(Handle); // level
+         price = FileReadNumber(Handle); // price
+         count = FileReadNumber(Handle); // count
+         start = FileReadNumber(Handle); // start
+         
+         */
+        
+      }
+       
+      ArrayResize(evTitle,c+1);  
+     ArrayResize(evCountry,c+1);
+     ArrayResize(evImpact,c+1);
+     ArrayResize(evForecast,c+1);
+     ArrayResize(evPrevious,c+1);
+     ArrayResize(evTime,c+1);  
+     ArrayResize(Trades,c+1);
+     ArrayResize(TradePairA,c+1);
+     ArrayResize(TradeDirectionA,c+1);
+     ArrayResize(TradePairB,c+1);
+     ArrayResize(TradeDirectionB,c+1);
+     
+     /*
+     
+        ArrayResize(evTitle,c);  //this is working but leaves out the last entry i suspect
+     ArrayResize(evCountry,c);
+     ArrayResize(evImpact,c);
+     ArrayResize(evForecast,c);
+     ArrayResize(evPrevious,c);
+     ArrayResize(evTime,c);  
+     ArrayResize(Trades,c);
+     ArrayResize(TradePairA,c);
+     ArrayResize(TradeDirectionA,c);
+     ArrayResize(TradePairB,c);
+     ArrayResize(TradeDirectionB,c);
+     
+     
+     
+     
+     */
+       
+        
+      FileClose(h);
+      Print("File loaded!");
+      
+      CalcTrades=true; // do the calcs and save the file
+      
+      // Print(evTitle[0]+ "," + evCountry[0]+ "," + evImpact[0]+ "," + evForecast[0]+ "," +evPrevious[0]+ "," +evTime[0]);
+      // Print(evTitle[1]+ "," + evCountry[1]+ "," + evImpact[1]+ "," + evForecast[1]+ "," +evPrevious[1]+ "," +evTime[1]);
+      // Print(evTitle[2]+ "," + evCountry[2]+ "," + evImpact[2]+ "," + evForecast[2]+ "," +evPrevious[2]+ "," +evTime[2]);
+ // evTitle[0] ="me manually setting 0 1st";  //WORKS
+  //Print(evTitle[0]);
+  
+  
+
+  
+ }
+ 
+  
+ FileModifed=(datetime)FileGetInteger(NewsFileName,FILE_MODIFY_DATE,false);
+ 
+    for(int n=0; n<ArraySize(evTitle)-1; n++)  //for(int i=0; i<ArraySize(evTitle); i++)
+    { 
+    Print("This is from the EA:" );
+      Print(evTitle[n]+ "," + evCountry[n]+ "," + evImpact[n]+ "," + evForecast[n]+ "," +evPrevious[n]+ "," +evTime[n]);
+       //this is exactly what I am goign to write to the file the EA will open.. this should be the last test before I start tryign the file right here
+      }
+      
+ //Print(evTitle[0]+ "," + evCountry[0]+ "," + evImpact[0]+ "," + evForecast[0]+ "," +evPrevious[0]+ "," +evTime[0]);
+ //      Print(evTitle[1]+ "," + evCountry[1]+ "," + evImpact[1]+ "," + evForecast[1]+ "," +evPrevious[1]+ "," +evTime[1]);
+ //      Print(evTitle[2]+ "," + evCountry[2]+ "," + evImpact[2]+ "," + evForecast[2]+ "," +evPrevious[2]+ "," +evTime[2]);
+ 
+ /*
+     for(int n=0; n<ArraySize(evTitle)-1; n++)  //for(int i=0; i<ArraySize(evTitle); i++)
+    { 
+    Print("This is from the EA:" );
+      Print(evTitle[n]+ "," + evCountry[n]+ "," + evImpact[n]+ "," + evForecast[n]+ "," +evPrevious[n]+ "," +evTime[n]);
+       //this is exactly what I am goign to write to the file the EA will open.. this should be the last test before I start tryign the file right here
+      }
+ 
+ */
+
+
+}
+
+//evTitle[0] ="me manually setting 0 2st"; //WORKS
+ // Print(evTitle[0]);
+
+/*
+ for(int n=0; i<ArraySize(evTitle)-1; n++)  //for(int i=0; i<ArraySize(evTitle); i++)
+    { 
+    Print("This is from the EA:" );
+      Print(evTitle[n]+ "," + evCountry[n]+ "," + evImpact[n]+ "," + evForecast[n]+ "," +evPrevious[n]+ "," +evTime[n]);
+       //this is exactly what I am goign to write to the file the EA will open.. this should be the last test before I start tryign the file right here
+      }
+    
+*/
+/*
+
+        for(int q=0; q<ArraySize(evTitle)-1; q++)  //for(int i=0; i<ArraySize(evTitle); i++)
+    { 
+    Print("This is from the EA:" );
+      Print(evTitle[q]+ "," + evCountry[q]+ "," + evImpact[q]+ "," + evForecast[q]+ "," +evPrevious[q]+ "," +evTime[q]);
+       //this is exactly what I am goign to write to the file the EA will open.. this should be the last test before I start tryign the file right here
+      }
+*/
+
+
+
+
+
+
+
+
+ArrayCopy(IndividualCurrencyTempSorted,IndividualCurrencyTemp,0,0,WHOLE_ARRAY); // make a dup
+
+ArraySort(IndividualCurrencyTempSorted,WHOLE_ARRAY,0,MODE_ASCEND); // now its sorted
+
+
+
+
+
+
+
+/*
+// this is nto necciary!!
+
+int NewsCurrencyIdx;  //int NewsCurrencyIdx = ArrayBsearch(IndividualCurrency,TempNewsCurrency,WHOLE_ARRAY,0,MODE_DESCEND); 
+
+string TradePairSearch="";
+                                      
+if(TempNewsCurrency=="AUD"){ NewsCurrencyIdx=0;} 
+if(TempNewsCurrency=="CAD"){ NewsCurrencyIdx=1;}
+if(TempNewsCurrency=="CHF"){ NewsCurrencyIdx=2;}  
+if(TempNewsCurrency=="EUR"){ NewsCurrencyIdx=3;} 
+if(TempNewsCurrency=="GBP"){ NewsCurrencyIdx=4;}  
+if(TempNewsCurrency=="JPY"){ NewsCurrencyIdx=5;} 
+if(TempNewsCurrency=="NZD"){ NewsCurrencyIdx=6;} 
+if(TempNewsCurrency=="USD"){ NewsCurrencyIdx=7;} 
+
+
+
+//Print("IndividualCurrencyTemp[0]= " + IndividualCurrencyTemp[0] + " IndividualCurrencyTemp[1]= " + IndividualCurrencyTemp[1]+ " IndividualCurrencyTemp[2]= " + IndividualCurrencyTemp[2]+ " IndividualCurrencyTemp[3]= " + IndividualCurrencyTemp[3]+ " IndividualCurrencyTemp[4]= " + IndividualCurrencyTemp[4]+ " IndividualCurrencyTemp[5]= " + IndividualCurrencyTemp[5]+ " IndividualCurrencyTemp[6]= " + IndividualCurrencyTemp[6]+ " IndividualCurrencyTemp[7]= " + IndividualCurrencyTemp[7]);
+ 
+//Print("IndividualCurrencyTempSorted[0]= " + IndividualCurrencyTempSorted[0] + " IndividualCurrencyTempSorted[1]= " + IndividualCurrencyTempSorted[1]+ " IndividualCurrencyTempSorted[2]= " + IndividualCurrencyTempSorted[2]+ " IndividualCurrencyTempSorted[3]= " + IndividualCurrencyTempSorted[3]+ " IndividualCurrencyTempSorted[4]= " + IndividualCurrencyTempSorted[4]+ " IndividualCurrencyTempSorted[5]= " + IndividualCurrencyTempSorted[5]+ " IndividualCurrencyTempSorted[6]= " + IndividualCurrencyTempSorted[6]+ " IndividualCurrencyTempSorted[7]= " + IndividualCurrencyTempSorted[7]);
+ 
+ 
+ //here i need to find the value if the currency.. so
+ int NewsCurencyRank;
+ NewsCurencyRank =ArrayBsearch(IndividualCurrencyTempSorted,IndividualCurrencyTemp[NewsCurrencyIdx],WHOLE_ARRAY,0,MODE_ASCEND); // this should output the rank form 0-7 of the newz currency
+ 
+ ok so the NewsCurencyRank is the index number from 0-7 and IndividualCurrencyTemp[NewsCurrencyIdx] is the actual number tempature change calc'd above)
+ 
+ 
+ string IndividualCurrency[8] = {"AUD","CAD","CHF","EUR","GBP","JPY","NZD","USD"};
+int IndividualCurrencyTemp[8];  //was double
+int IndividualCurrencyTempSorted[8];
+
+I have hte index of 1 and 6  in IndividualCurrencyTempSorted  that stores a individual tempature 
+
+we are looking in IndividualCurrency for the vaule of IndividualCurrencyTempSorted [IndividualCurrencyTemp]
+   Numeric array for search, Value for search that would give us an index number 
+   
+   then we use that index to get the value of IndividualCurrency
+   
+   
+int NextWeakest;   
+NextWeakest =  ArrayBsearch(IndividualCurrencyTemp, IndividualCurrencyTempSorted[1],WHOLE_ARRAY,0,MODE_ASCEND); 
+
+int NextStrongest;
+NextStrongest=  ArrayBsearch(IndividualCurrencyTemp, IndividualCurrencyTempSorted[6],WHOLE_ARRAY,0,MODE_ASCEND);
+ 
+ 
+//Print("IndividualCurrencyTemp[NewsCurrencyIdx] = " + IndividualCurrencyTemp[NewsCurrencyIdx]);
+ 
+//Print("NewsCurencyRank = " + NewsCurencyRank);
+ 
+
+
+if ( (MathAbs(NewsCurencyRank - 7) )>(MathAbs(NewsCurencyRank - 0)))  //if ( (MathAbs(IndividualCurrencyTemp[NewsCurrencyIdx] - IndividualCurrencyTemp[StrongestIdx]) )>(IndividualCurrencyTemp[NewsCurrencyIdx] - IndividualCurrencyTemp[WeakestIdx]))  //
+   {
+ 
+ */
+ 
+ if(CalcTrades)
+ {
+ CalcTrades=false;
+ 
+ string TradePairSearch="";
+ 
+ 
+ for(int q=0; q<ArraySize(evTitle); q++)  // for(int q=0; q<ArraySize(evTitle)-1; q++)
+    {   
+    
+// A TRADES 
+
+if((evCountry[q] != IndividualCurrency[StrongestIdx]) && (evCountry[q] != IndividualCurrency[WeakestIdx]))  // this was || or I changed it to and &&  ///this is not working-->  JPYJPY,opp,AUDJPY,opp  (AUD is the weakest)
+  {
+    Print(evCountry[q] + " isn not the strongest "+ IndividualCurrency[StrongestIdx]+ " nor the weakest "+IndividualCurrency[WeakestIdx] );
+    TradePairA[q] = evCountry[q] + IndividualCurrency[StrongestIdx];
+    TradeDirectionA[q] ="same";
+    
+    // here is where I can add the trade direction - either with or the opposite of the new release results
+    
+          for(int k=0; k<=27; k++) 
+          {
+           if(Pairs[k] == TradePairA[q]) //if its a vaild pair - set teh varibles = and stop searching.. if nto keep looking
+           {
+           TradePairSearch = TradePairA[q];
+           break; 
+           }  
+          
+          }
+
+
+    if (TradePairSearch   !=  TradePairA[q]) //if not found in the for loop - then flip the currencies
+    {
+    
+     TradePairA[q] = IndividualCurrency[StrongestIdx] + evCountry[q];
+     
+     // here is where I can add the trade direction - either with or the opposite of the new release results
+     
+     //if the news curremcy is on the left, then go with the forcast - if its ont he right, then its  the opposite
+     TradeDirectionA[q] ="opp";
+    
+      }
+   
+//   }
+ //  else  // if the distance to the weakest is bigger from the news currency
+ //  {
+ 
+ 
+//B TRADES = b side 
+ 
+   TradePairB[q] = evCountry[q] + IndividualCurrency[WeakestIdx];
+   TradeDirectionB[q] ="same";
+   
+         for(int l=0; l<=27; l++) 
+          {
+           if(Pairs[l] == TradePairB[q]) //if its a vaild pair - set teh varibles = and stop searching.. if nto keep looking
+           {
+           TradePairSearch = TradePairB[q];
+           break; 
+           }  
+          
+          }
+   
+   
+     if (TradePairSearch   !=  TradePairB[q]) //if not then flip the currencies
+      {
+    
+       TradePairB[q] = IndividualCurrency[WeakestIdx] + evCountry[q];
+       TradeDirectionB[q] ="opp";
+       
+       }
+       
+    }// end of news currecy = to strongest or weakest
+   else if (evCountry[q] == IndividualCurrency[StrongestIdx])   
+    {
+      Print( evCountry[q] + " is the same as the strongest - needs to be changed");
+      TradePairA[q] = evCountry[q] + IndividualCurrency[WeakestIdx];
+      TradeDirectionA[q] ="same";
+    
+    // here is where I can add the trade direction - either with or the opposite of the new release results
+    
+          for(int r=0; r<=27; r++) 
+          {
+           if(Pairs[r] == TradePairA[q]) //if its a vaild pair - set teh varibles = and stop searching.. if nto keep looking
+           {
+           TradePairSearch = TradePairA[q];
+           break; 
+           }  
+          
+          }
+
+
+    if (TradePairSearch   !=  TradePairA[q]) //if not found in the for loop - then flip the currencies
+    {
+    
+     TradePairA[q] = IndividualCurrency[WeakestIdx] + evCountry[q];
+     
+     // here is where I can add the trade direction - either with or the opposite of the new release results
+     
+     //if the news curremcy is on the left, then go with the forcast - if its ont he right, then its  the opposite
+     TradeDirectionA[q] ="opp";
+    
+      }
+    
+  
+      int NextStrongest;
+      NextStrongest=  ArrayBsearch(IndividualCurrencyTemp, IndividualCurrencyTempSorted[6],WHOLE_ARRAY,0,MODE_ASCEND);
+    
+    //B TRADES = b side 
+ 
+         TradePairB[q] = evCountry[q] + IndividualCurrency[NextStrongest];
+         TradeDirectionB[q] ="same";
+         
+               for(int t=0; t<=27; t++) 
+                {
+                 if(Pairs[t] == TradePairB[q]) //if its a vaild pair - set teh varibles = and stop searching.. if nto keep looking
+                 {
+                 TradePairSearch = TradePairB[q];
+                 break; 
+                 }  
+                
+                }
+         
+         
+           if (TradePairSearch   !=  TradePairB[q]) //if not then flip the currencies
+            {
+          
+             TradePairB[q] = IndividualCurrency[NextStrongest] + evCountry[q];
+             TradeDirectionB[q] ="opp";
+       
+       }
+    
+    
+    
+    } //end of news = stronest
+    
+   else if (evCountry[q] == IndividualCurrency[WeakestIdx])
+    {
+       Print( evCountry[q] + " is the same as the weakest - needs to be changed");
+      TradePairA[q] = evCountry[q] + IndividualCurrency[StrongestIdx];
+      TradeDirectionA[q] ="same";
+    
+    // here is where I can add the trade direction - either with or the opposite of the new release results
+    
+          for(int s=0; s<=27; s++) 
+          {
+           if(Pairs[s] == TradePairA[q]) //if its a vaild pair - set teh varibles = and stop searching.. if nto keep looking
+           {
+           TradePairSearch = TradePairA[q];
+           break; 
+           }  
+          
+          }
+
+
+    if (TradePairSearch   !=  TradePairA[q]) //if not found in the for loop - then flip the currencies
+    {
+    
+     TradePairA[q] = IndividualCurrency[StrongestIdx] + evCountry[q];
+     
+     // here is where I can add the trade direction - either with or the opposite of the new release results
+     
+     //if the news curremcy is on the left, then go with the forcast - if its ont he right, then its  the opposite
+     TradeDirectionA[q] ="opp";
+    
+      }
+    
+    
+      int NextWeakest;   
+      NextWeakest =  ArrayBsearch(IndividualCurrencyTemp, IndividualCurrencyTempSorted[1],WHOLE_ARRAY,0,MODE_ASCEND); 
+
+    
+        //B TRADES = b side 
+ 
+         TradePairB[q] = evCountry[q] + IndividualCurrency[NextWeakest];
+         TradeDirectionB[q] ="same";
+         
+               for(int u=0; u<=27; u++) 
+                {
+                 if(Pairs[u] == TradePairB[q]) //if its a vaild pair - set teh varibles = and stop searching.. if nto keep looking
+                 {
+                 TradePairSearch = TradePairB[q];
+                 break; 
+                 }  
+                
+                }
+         
+         
+           if (TradePairSearch   !=  TradePairB[q]) //if not then flip the currencies
+            {
+          
+             TradePairB[q] = IndividualCurrency[NextWeakest] + evCountry[q];
+             TradeDirectionB[q] ="opp";
+    
+    } //end of news = weakest   
+    
+    
+    
+    }//end of if they are
+    
+   }  //end of check and assign the trades and dirrections
+   
+   WriteTrades=true;
+   
+} //if write is true  
+   
+   
+   
+   
+
+// need to get the calcs for the trade direction.. its usually sell the base if bad but not always..
+
+/*
+
+ideas.. so im gettign the pic that if the newscurrecny is the counter, then we take the opposite of the news release.
+
+example:
+
+GBPUSD - the USD news was bad - since the news currency is the counter - we would take the opposite of the news and buy GBPUSD!
+AUDUS  - AUD news was bad - since the news currency is the base - we would follow the news and sell.
+
+*/
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+if(WriteTrades)  // thsi seciton might not be necciary if on int it pulls up athe trades.. the indi file needs to be pulled sevarl times aday,.. but may aslo not be neede depending ont he xml reading of the real website .. oif we are wasign cycles to read the enire page.. then y not use that data for a real time update!
+{
+WriteTrades=false;
+
+
+/*
+ for(int i=0; i<ArraySize(evTitle)-1; i++)  //for(int i=0; i<ArraySize(eTitle); i++)
+    { 
+      Print(eTitle[i]+ "," + eCountry[i]+ "," + eImpact[i]+ "," + eForecast[i]+ "," +ePrevious[i]+ "," +eTime[i]);
+       //this is exactly what I am goign to write to the file the EA will open.. this should be the last test before I start tryign the file right here
+      }
+ */
+   
+   int handle2 = FileOpen(filenameTrades,FILE_CSV|FILE_WRITE);
+   if(handle2==INVALID_HANDLE)
+      return(0);
+   string header2 = "TradePairA,DirrectionA,TradePairB,DirrectionB\r\n";
+   FileWriteString(handle2,header2);
+ 
+   for(int ii=0; ii<ArraySize(evTitle)-1; ii++)  //for(int ii=0; ii<ArraySize(evTitle)-1; ii++)
+   {
+      string row =  TradePairA[ii]+",";
+      row+= TradeDirectionA[ii]+",";
+      row+= TradePairB[ii]+",";
+      row+= TradeDirectionB[ii];       //+",";
+      row+= "\r\n";  ///row closeing
+      FileWriteString(handle2,row);
+   }
+   FileClose(handle2);
+   Print("File saved as ",filenameTrades);
+
+
+
+}
+  
+  
+  
+  
+  
+  
+ 
+ 
+ //this below is not the way to calc the weakest..
+    int    minValueIdx=ArrayMinimum(PairChangeABS,WHOLE_ARRAY,0);
+ //  Print( Pairs[minValueIdx] +  " Min value = " + PairChangeABS[minValueIdx]);
+ 
+string	Text1	= Pairs[0] + " " + PairValuesCurent[0] + " " + PairValuesPrevious[0]+ " " + PairChange[0] + "%";
+string	Text2	= Pairs[1] + " " + PairValuesCurent[1] + " " + PairValuesPrevious[1]+ " " + PairChange[1] + "%";
+string	Text3	= Pairs[2] + " " + PairValuesCurent[2] + " " + PairValuesPrevious[2]+ " " + PairChange[2] + "%";
+string	Text4	= Pairs[3] + " " + PairValuesCurent[3] + " " + PairValuesPrevious[3]+ " " + PairChange[3] + "%";
+string	Text5	= Pairs[4] + " " + PairValuesCurent[4] + " " + PairValuesPrevious[4]+ " " + PairChange[4] + "%";
+string	Text6	= Pairs[5] + " " + PairValuesCurent[5] + " " + PairValuesPrevious[5]+ " " + PairChange[5] + "%";
+string	Text7	= Pairs[6] + " " + PairValuesCurent[6] + " " + PairValuesPrevious[6]+ " " + PairChange[6] + "%";
+string	Text8	= Pairs[7] + " " + PairValuesCurent[7] + " " + PairValuesPrevious[7]+ " " + PairChange[7] + "%";
+string	Text9	= Pairs[8] + " " + PairValuesCurent[8] + " " + PairValuesPrevious[8]+ " " + PairChange[8] + "%";
+string	Text10	= Pairs[9] + " " + PairValuesCurent[9] + " " + PairValuesPrevious[9]+ " " + PairChange[9] + "%";
+string	Text11	= Pairs[10] + " " + PairValuesCurent[10] + " " + PairValuesPrevious[10]+ " " + PairChange[10] + "%";
+string	Text12	= Pairs[11] + " " + PairValuesCurent[11] + " " + PairValuesPrevious[11]+ " " + PairChange[11] + "%";
+string	Text13	= Pairs[12] + " " + PairValuesCurent[12] + " " + PairValuesPrevious[12]+ " " + PairChange[12] + "%";
+string	Text14	= Pairs[13] + " " + PairValuesCurent[13] + " " + PairValuesPrevious[13]+ " " + PairChange[13] + "%";
+string	Text15	= Pairs[14] + " " + PairValuesCurent[14] + " " + PairValuesPrevious[14]+ " " + PairChange[14] + "%";
+string	Text16	= Pairs[15] + " " + PairValuesCurent[15] + " " + PairValuesPrevious[15]+ " " + PairChange[15] + "%";
+string	Text17	= Pairs[16] + " " + PairValuesCurent[16] + " " + PairValuesPrevious[16]+ " " + PairChange[16] + "%";
+string	Text18	= Pairs[17] + " " + PairValuesCurent[17] + " " + PairValuesPrevious[17]+ " " + PairChange[17] + "%";
+string	Text19	= Pairs[18] + " " + PairValuesCurent[18] + " " + PairValuesPrevious[18]+ " " + PairChange[18] + "%";
+string	Text20	= Pairs[19] + " " + PairValuesCurent[19] + " " + PairValuesPrevious[19]+ " " + PairChange[19] + "%";
+string	Text21	= Pairs[20] + " " + PairValuesCurent[20] + " " + PairValuesPrevious[20]+ " " + PairChange[20] + "%";
+string	Text22	= Pairs[21] + " " + PairValuesCurent[21] + " " + PairValuesPrevious[21]+ " " + PairChange[21] + "%";
+string	Text23	= Pairs[22] + " " + PairValuesCurent[22] + " " + PairValuesPrevious[22]+ " " + PairChange[22] + "%";
+string	Text24	= Pairs[23] + " " + PairValuesCurent[23] + " " + PairValuesPrevious[23]+ " " + PairChange[23] + "%";
+string	Text25	= Pairs[24] + " " + PairValuesCurent[24] + " " + PairValuesPrevious[24]+ " " + PairChange[24] + "%";
+string	Text26	= Pairs[25] + " " + PairValuesCurent[25] + " " + PairValuesPrevious[25]+ " " + PairChange[25] + "%";
+string	Text27	= Pairs[26] + " " + PairValuesCurent[26] + " " + PairValuesPrevious[26]+ " " + PairChange[26] + "%";
+string	Text28	= Pairs[27] + " " + PairValuesCurent[27] + " " + PairValuesPrevious[27]+ " " + PairChange[27] + "%";
+string   Text29   = Pairs[maxValueIdx] +  " Max value = " + PairChangeABS[maxValueIdx];
+string   Text30   = Pairs[minValueIdx] +  " Min value = " + PairChangeABS[minValueIdx]; 
+ 
+ 
+    Text = Text1	+"\n"  +
+Text2	+"\n"  +
+Text3	+"\n"  +
+Text4	+"\n"  +
+Text5	+"\n"  +
+Text6	+"\n"  +
+Text7	+"\n"  +
+Text8	+"\n"  +
+Text9	+"\n"  +
+Text10	+"\n"  +
+Text11	+"\n"  +
+Text12	+"\n"  +
+Text13	+"\n"  +
+Text14	+"\n"  +
+Text15	+"\n"  +
+Text16	+"\n"  +
+Text17	+"\n"  +
+Text18	+"\n"  +
+Text19	+"\n"  +
+Text20	+"\n"  +
+Text21	+"\n"  +
+Text22	+"\n"  +
+Text23	+"\n"  +
+Text24	+"\n"  +
+Text25	+"\n"  +
+Text26	+"\n"  +
+Text27	+"\n"  +
+Text28	+"\n"  +
+Text29	+"\n"  +
+Text30	+"\n"  +
+Text31	+"\n"  +
+Text32  +"\n"  ; 
+//"TradePair = " + TradePair +" for "+ TempNewsCurrency;
+ 	         
+
+   Comment(Text);
+   //Print(Text);
+
+//write to file test
+/*  
+int handle=FileOpen("data1.csv",FILE_CSV|FILE_READ|FILE_WRITE,',');
+FileWrite(handle, "Time","Bid","Ask");
+//Write to file//////////////////////////////////////////////////////////////////////////////////////////////
+FileWrite(handle, TimeToStr( TimeCurrent(), TIME_DATE | TIME_SECONDS ), Bid, Ask);
+
+//output:
+
+Time,Bid,Ask
+2018.02.20 18:24:58,0.79005,0.79008
+
+
+
+*/
+
+
+
+
+
+// here are my speculations on reading the txt file - if needed - and then calc
+
+
+
+//this is redudnat - reading it from a file while the data is in arrys - wasting cycles
+
+/*
+if(ReadTradesFile)
+{
+
+
+ Print("ReadTradesFile is true");
+  ReadTradesFile=false;
+  
+ 
+  int h = FileOpen(filenameTrades, FILE_CSV|FILE_READ,',');
+  if(h!=INVALID_HANDLE)
+  {
+      if (h==0) {
+         Comment("File "+filenameTrades+" not found.");
+         return(0);
+      }  
+
+
+      Print("H = vaild handel");
+      //for (int c=0; !FileIsEnding(h) && c<9999; c++)  {
+         
+        // if (FileIsEnding(h))  break;
+         //int c=0;
+         
+         evTitle[0] ="me manually setting 0 before file loop";
+  Print(evTitle[0]);
+         
+        for (int c=0; !FileIsEnding(h) && c<9999; c++)  //   while(FileIsEnding(h)==false) // While the file pointer..
+          { // ..is not at the end of the file 
+           Print("C= " + c);
+        // dt[c]= FileReaddatetime(h);   // Extracting and storing Date & Time
+       //  val1[c]=FileReadString(h);    // Extracting and storing Column 2 of CSV
+       //  val2[c]=FileReadNumber(h);    // Extracting and storing Column 3 of CSV
+         
+        //Title,Country,Impact,Forecast,Previous,Time
+        if (FileIsEnding(h))  break;
+         
+         tradeA[c]= FileReadString(h);                            
+                
+         dirrection[c]= FileReadString(h);                          
+         
+         tradeB[c]= FileReadString(h);
+         
+         direcctionB[c]= FileReadString(h);
+        
+      }//end of running thru the file to get the data
+       
+
+  
+   }//end of if its a valid handel
+ 
+  
+
+ }//end of readfile
+   
+   */
+      
+//this is redudnat - reading it from a file while the data is in arrys - wasting cycles
+
+
+
+
+// here i need to check the current time to the evTime
+
+
+//Comment ("Local hour = " +TimeHour(TimeLocal())  + ": " + TimeMinute(TimeLocal()) + " Vs " + TimeToString(evTime[0])   + " vs " + TimeToString(TimeLocal()) + " " + TimeDayOfYear(evTime[0]) + " vs " + TimeDayOfYear(TimeLocal()));
+
+/// NOTE: using timedayoftheyear works.. then the hour then the mins -1 OR i can use the indicator's buffer to let me know when there is a min letf and whent here
+// its time to prase the data formt he website a T-00  .. this is prob more efficent then doing all the above.. time to re-write this whole section below!
+
+
+
+/*
+if ( evTime[0] > TimeLocal())
+         {
+         
+         Comment ( evTime[20]   + " > " + TimeToString(TimeLocal()) + " " + TimeLocal() );
+         
+         }
+         
+else if (evTime[0] > TimeLocal())
+         {
+          Comment ( evTime[20] -7   + " < " + TimeToString(TimeLocal()) );
+          }
+
+
+if (TimeMinute(TimeLocal())  >  TimeMinute(evTime[1]))
+ {
+ 
+ Comment (TimeMinute(TimeLocal()) + "  > " +  TimeMinute(evTime[1]));
+ 
+ }
+else 
+{
+
+Comment (TimeMinute(TimeLocal()) + "  < " +  TimeMinute(eTime[1]));
+
+}
+
+
+if (TimeMinute(TimeLocal())  ==  TimeMinute(eTime[1]))
+ {
+  Comment ("same");
+
+}
+
+
+*/
+
+
+/*
+
+// this is what I am going to use to tell me the time to the next news release... prob is not sure how to tell its the correct one.. I belive that evTime[0] will ALAways
+// be the next news release and we cab prob get away with just get 0 until there is no 0 left for that day and the best part, i can have the heatmap generatte on the fly every hr or so
+// that way its the most upto date [possible - this might be moved back to midmight each day to get eh accurate reading.. this is the ebst wya i think)
+
+
+iCustom(
+        string       NULL,            // symbol 
+        int          0,               // timeframe 
+        string       "FFC",           // path/name of the custom indicator compiled program 
+        bool         true,            // true/false: Active chart only 
+        bool         true,            // true/false: Include High impact
+        bool         true,            // true/false: Include Medium impact
+        bool         true,            // true/false: Include Low impact
+        bool         true,            // true/false: Include Speaks
+        bool         false,           // true/false: Include Holidays
+        string       "",              // Find keyword
+        string       "",              // Ignore keyword
+        bool         true,            // true/false: Allow Updates
+        int          4,               // Update every (in hours)
+        int          0,               // Buffers: (0) Minutes, (1) Impact
+        int          0                // shift 
+        );
+        
+        
+   iCustom(NULL,0,"FFC",fasle,true,fasle,fasle,fasle,false,"","",true,4,0,0);     
+        
+        
+*/
+
+
+
+/*
+  
+  if( TotalOrdersCount()==0 ) // i need to send both A and B orders together
+  {
+
+
+//here is the trade data
+//TradePairA[ii]+",";
+//TradeDirectionA[ii]+",";
+//TradePairB[ii]+",";
+//TradeDirectionB[ii]+",";
+
+
+
+
+
+
+
+
+
+}//end of if there are no orders.. 
+
+
+
+}//end of if ts tiem for the order
+
+
+*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+     		
+      		
+}//end of onstart
+
+  
+  
+void OnTimer()
+  {
+//--- 
+
+   Print("Print at timmer");
+
+    ReadFile=true;
+    
+
+//---
+}
+
